@@ -15,19 +15,27 @@ from component import Component
 
 class TestFlattenProduct(unittest.TestCase):
     """
-    _flatten_product lifts subscription sub-object and drops `subscription`/`object`.
-    Sample shape from research §3:
-        id, store_identifier, type, one_time,
-        subscription{duration, grace_period_duration, trial_duration},
+    _flatten_product lifts the `subscription` AND `one_time` sub-objects into scalar
+    columns and drops `subscription`/`one_time`/`object`.
+
+    Real shape (verified against the recorded products cassette):
+        id, store_identifier, type,
+        one_time -> null | {is_consumable: bool|null},
+        subscription -> null | {duration, grace_period_duration, trial_duration},
         display_name, app_id, state, created_at, object
+
+    `one_time` and `subscription` are mutually exclusive: subscription products carry
+    `subscription` with `one_time: null`; one-time products carry `one_time` with
+    `subscription: null`.
     """
 
     def _sample_product(self) -> dict:
+        """A subscription product — `one_time` is null, `subscription` is the nested object."""
         return {
             "id": "prod_yearly",
             "store_identifier": "com.example.yearly",
             "type": "subscription",
-            "one_time": False,
+            "one_time": None,
             "subscription": {
                 "duration": "P1Y",
                 "grace_period_duration": "P3D",
@@ -50,6 +58,10 @@ class TestFlattenProduct(unittest.TestCase):
         result = Component._flatten_product(self._sample_product())
         self.assertNotIn("subscription", result)
 
+    def test_one_time_key_removed(self) -> None:
+        result = Component._flatten_product(self._sample_product())
+        self.assertNotIn("one_time", result)
+
     def test_object_key_removed(self) -> None:
         result = Component._flatten_product(self._sample_product())
         self.assertNotIn("object", result)
@@ -58,11 +70,15 @@ class TestFlattenProduct(unittest.TestCase):
         result = Component._flatten_product(self._sample_product())
         self.assertEqual(result["id"], "prod_yearly")
         self.assertEqual(result["store_identifier"], "com.example.yearly")
-        self.assertEqual(result["one_time"], False)
         self.assertEqual(result["display_name"], "Yearly Pro")
         self.assertEqual(result["app_id"], "app419959e85c")
         self.assertEqual(result["state"], "published")
         self.assertEqual(result["created_at"], 1700000000000)
+
+    def test_null_one_time_gives_none_consumable(self) -> None:
+        """A subscription product (one_time: null) yields one_time_is_consumable=None."""
+        result = Component._flatten_product(self._sample_product())
+        self.assertIsNone(result["one_time_is_consumable"])
 
     def test_missing_subscription_gives_none_columns(self) -> None:
         product = self._sample_product()
@@ -80,23 +96,53 @@ class TestFlattenProduct(unittest.TestCase):
         self.assertIsNone(result["subscription_grace_period_duration"])
         self.assertIsNone(result["subscription_trial_duration"])
 
-    def test_one_time_product_no_subscription(self) -> None:
-        """A lifetime one_time product has no subscription sub-object."""
-        product = {
+    def _sample_one_time_product(self) -> dict:
+        """A lifetime one-time product — `one_time` is the nested object, `subscription` is null."""
+        return {
             "id": "prod_lifetime",
             "store_identifier": "com.example.lifetime",
             "type": "one_time",
-            "one_time": True,
+            "one_time": {"is_consumable": None},
+            "subscription": None,
             "display_name": "Lifetime Pro",
             "app_id": "app419959e85c",
             "state": "published",
             "created_at": 1700000001000,
             "object": "product",
         }
-        result = Component._flatten_product(product)
+
+    def test_one_time_product_no_subscription(self) -> None:
+        """A lifetime one_time product has no subscription sub-object."""
+        result = Component._flatten_product(self._sample_one_time_product())
         self.assertIsNone(result["subscription_duration"])
         self.assertNotIn("subscription", result)
+        self.assertNotIn("one_time", result)
         self.assertNotIn("object", result)
+
+    def test_one_time_object_flattened_to_consumable_column(self) -> None:
+        """one_time: {is_consumable: null} -> one_time_is_consumable=None (matches real cassette)."""
+        result = Component._flatten_product(self._sample_one_time_product())
+        self.assertIn("one_time_is_consumable", result)
+        self.assertIsNone(result["one_time_is_consumable"])
+
+    def test_one_time_consumable_true_lifted(self) -> None:
+        """A consumable one-time product surfaces the boolean as a scalar column."""
+        product = self._sample_one_time_product()
+        product["one_time"] = {"is_consumable": True}
+        result = Component._flatten_product(product)
+        self.assertIs(result["one_time_is_consumable"], True)
+
+    def test_one_time_consumable_false_lifted(self) -> None:
+        product = self._sample_one_time_product()
+        product["one_time"] = {"is_consumable": False}
+        result = Component._flatten_product(product)
+        self.assertIs(result["one_time_is_consumable"], False)
+
+    def test_missing_one_time_gives_none_consumable(self) -> None:
+        product = self._sample_product()
+        del product["one_time"]
+        result = Component._flatten_product(product)
+        self.assertIsNone(result["one_time_is_consumable"])
 
 
 class TestFlattenSubscription(unittest.TestCase):

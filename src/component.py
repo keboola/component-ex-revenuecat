@@ -72,7 +72,10 @@ SCHEMAS: dict[str, dict[str, ColumnDefinition]] = {
         "id": ColumnDefinition(data_types=_S(), primary_key=True),
         "store_identifier": ColumnDefinition(data_types=_S()),
         "type": ColumnDefinition(data_types=_S()),
-        "one_time": ColumnDefinition(data_types=_B()),
+        # `one_time` is a nested object on the API (null for subscriptions,
+        # {"is_consumable": bool|null} for one-time products) — flattened to scalar
+        # columns, mirroring how `subscription` is flattened below.
+        "one_time_is_consumable": ColumnDefinition(data_types=_B()),
         "display_name": ColumnDefinition(data_types=_S()),
         "app_id": ColumnDefinition(data_types=_S()),
         "state": ColumnDefinition(data_types=_S()),
@@ -323,19 +326,29 @@ class Component(ComponentBase):
     @staticmethod
     def _flatten_product(product: dict) -> dict:
         """
-        Flatten the nested `subscription` sub-object into top-level columns.
+        Flatten the nested `subscription` and `one_time` sub-objects into scalar columns.
 
-        Input keys per research §3:
-            id, store_identifier, type, one_time, subscription{duration,
-            grace_period_duration, trial_duration}, display_name, app_id,
-            state, created_at, object
+        Input keys per research §3 (verified against the recorded products cassette):
+            id, store_identifier, type,
+            one_time -> null | {is_consumable: bool|null},
+            subscription -> null | {duration, grace_period_duration, trial_duration},
+            display_name, app_id, state, created_at, object
+
+        `one_time` and `subscription` are mutually exclusive: subscription products carry
+        `subscription` (with `one_time: null`); one-time products carry `one_time` (with
+        `subscription: null`). Both are nested objects, so both are flattened — writing the
+        raw object into a scalar BOOLEAN column is what broke the authoritative-types import.
         """
         row = dict(product)
         row.pop("object", None)
+
         sub = row.pop("subscription", None) or {}
         row["subscription_duration"] = sub.get("duration")
         row["subscription_grace_period_duration"] = sub.get("grace_period_duration")
         row["subscription_trial_duration"] = sub.get("trial_duration")
+
+        one_time = row.pop("one_time", None) or {}
+        row["one_time_is_consumable"] = one_time.get("is_consumable")
         return row
 
     @staticmethod

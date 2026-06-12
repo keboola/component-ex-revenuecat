@@ -81,6 +81,26 @@ class TestConfigEntities:
         not (FUNCTIONAL_DIR / "01_happy_config_entities").exists(),
         reason="01_happy_config_entities cassette not recorded",
     )
+    def test_products_one_time_flattened_not_raw_object(self) -> None:
+        """`one_time` is a nested object on the API; it must be flattened to a scalar
+        `one_time_is_consumable` column. The raw scalar `one_time` column (which received a
+        stringified dict and broke the authoritative-types import) must NOT be present."""
+        manifest = _read_manifest(self.tables / "products.manifest")
+        cols = {col["name"]: col for col in manifest.get("schema", [])}
+        assert "one_time_is_consumable" in cols, "Missing flattened column 'one_time_is_consumable'"
+        assert "one_time" not in cols, "Raw nested 'one_time' column must be flattened away"
+        # The flattened column is a real BOOLEAN — coercible from the real values (null / bool).
+        assert cols["one_time_is_consumable"]["data_type"]["base"]["type"] == "BOOLEAN"
+        # No row may carry a stringified dict in the one_time_is_consumable position.
+        rows = _read_csv(self.tables / "products", list(cols))
+        for row in rows:
+            val = row.get("one_time_is_consumable", "")
+            assert "{" not in val, f"one_time_is_consumable holds a stringified object: {val!r}"
+
+    @pytest.mark.skipif(
+        not (FUNCTIONAL_DIR / "01_happy_config_entities").exists(),
+        reason="01_happy_config_entities cassette not recorded",
+    )
     def test_products_has_three_rows(self) -> None:
         manifest = _read_manifest(self.tables / "products.manifest")
         col_names = [col["name"] for col in manifest.get("schema", [])]

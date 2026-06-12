@@ -35,7 +35,7 @@
       "nullable": true
     },
     {
-      "name": "one_time",
+      "name": "one_time_is_consumable",
       "data_type": {
         "base": {
           "type": "BOOLEAN"
