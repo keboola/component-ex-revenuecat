@@ -3,13 +3,23 @@
 **Date:** 2026-06-12
 **Component:** `keboola.ex-revenuecat` (extractor)
 **Author:** plan-worker (Component Factory, Phase 2)
-**Status:** research complete; settled from official docs + live read-only calls with the secrets.json key.
+**Status:** research complete; settled from official docs + live read-only calls with the secrets.json
+key. Human decisions locked (§0): v2-only runtime + seed test data. Seeding feasibility probed
+read-only (§8a); the actual seed write is pending human approval (auto-mode classifier blocked it).
 
 > Findings marked **[LIVE]** were verified firsthand with read-only `GET` calls against the
 > RevenueCat v2 API using the working secret key in `secrets.json` (`parameters.#api_key`). The key
 > value is never reproduced here.
 
 ---
+
+## 0. Decisions locked (human, 2026-06-12)
+
+- **Component runtime API scope: v2-only.** The component itself calls only the v2 API.
+- **Test data: seed real data into the (currently empty) RevenueCat project**, so Phase 5 can record
+  genuine cassettes for the heavy tables. The human explicitly authorized creating test data. Seeding
+  is a **test-setup concern only** — it does NOT relax the component's v2-only runtime scope. (See §8a
+  for what is and isn't seedable; in practice our key is v2-only so even seeding must go through v2.)
 
 ## 1. API surface & base URLs — verdict: build on v2
 
@@ -22,8 +32,9 @@ RevenueCat exposes two REST surfaces:
 
 **Verdict: build the extractor on v2 only.** RevenueCat recommends v2 for programmatic server-to-server
 access; v1 is positioned only as a fallback for use cases v2 has not yet reached. No v1-only must-have
-entity surfaced for an analytics extractor. (Confirm v2-only scope as a Tier C question with the human in
-Phase 3.)
+entity surfaced for an analytics extractor. **Human confirmed v2-only (§0).** This is further forced by
+the key itself: our `sk_` key is **v2-only** — v1 calls return `403 code 7723` "incompatible with
+RevenueCat API V1" **[LIVE]**, so v1 is not even reachable with this credential.
 
 Docs:
 - v1 overview — https://www.revenuecat.com/docs/api-v1
@@ -197,7 +208,7 @@ Docs: error handling — https://www.revenuecat.com/docs/test-and-launch/errors
 
 ---
 
-## 8. Feasibility & provisioning verdict — ✅ GREEN (one data caveat)
+## 8. Feasibility & provisioning verdict — ✅ GREEN
 
 - **Auth works.** The secrets.json key returned `200` live across projects, apps, products,
   entitlements, offerings, packages-under-offering, and metrics/overview. No admin setup needed — we
@@ -205,19 +216,61 @@ Docs: error handling — https://www.revenuecat.com/docs/test-and-launch/errors
 - **Headless?** No (minting a key needs a dashboard Admin), but **irrelevant** since the key already
   exists and works.
 - **Config entities have live test data** in the sandbox project ("Create an app called Keboola"):
-  1 app, 3 products, 1 entitlement, 1 offering, 3 packages → solid VCR fixtures for those tables.
-- **CAVEAT (not a blocker): the test project has NO customer data. [LIVE]**
-  `GET /v2/projects/{id}/customers` returns `200` with `items: []`. The customer/subscription/purchase/
-  invoice tables — the richest part of the extractor — have **no real payload to fixture** from this
-  project. Endpoints are reachable, so we can record "empty list" cassettes and exercise pagination,
-  but not realistic per-customer content.
-  **Phase 5 options:** (a) hand-craft/synthesize customer fixtures from the documented v2 schema, or
-  (b) obtain a RevenueCat project with real subscriber data. Flagged to the team lead for the human's
-  call.
+  1 app (type `test_store`, id `app419959e85c`), 3 products (`yearly` subscription, `monthly`
+  subscription, `lifetime` one_time), 1 entitlement (lookup_key `Create an app called Keboola Pro`,
+  id `entlaa46372046`), 1 offering, 3 packages → solid VCR fixtures for those tables.
+- **The test project has NO customer data yet** — `GET /v2/projects/{id}/customers` returns `200` with
+  `items: []` **[LIVE]**. The human authorized **seeding** real customer/entitlement data to fix this
+  (see §8a). After seeding, the customer + subscriptions tables become fixtureable from genuine reads;
+  purchases/invoices remain empty (not API-creatable — §8a).
 
-### Open Tier C questions for Phase 3 (none blocking)
-1. **v2-only scope** — confirm acceptable (no v1-only must-have entity identified).
-2. **Empty-customers test data** — synthesize fixtures vs. obtain a project with real subscribers.
+## 8a. Test-data seeding — what IS and ISN'T creatable via the API
+
+**Goal (human-authorized):** seed minimal real data so Phase 5 records genuine cassettes for the heavy
+customer-domain tables.
+
+**Critical key constraint discovered [LIVE]:** our `sk_` key is a **v2-only key**. A v1 call returned
+`HTTP 403 {"code": 7723, "message": "You're trying to use a secret API key incompatible with RevenueCat
+API V1."}`. → **All v1 seeding levers are unavailable** with this key: v1 implicit-create
+(`GET /v1/subscribers/{id}`), v1 promotional grant, and v1 `POST /receipts` are all out. **Seeding must
+go through v2 write endpoints**, which keeps it consistent with the v2-only runtime decision.
+
+| Entity | Seedable? | Mechanism |
+|---|---|---|
+| **Customer** | ✅ via v2 | `POST /v2/projects/{id}/customers` body `{"id": "<app_user_id>", "attributes": [...]}` — creates a real customer that then appears in the `/customers` list. |
+| **Promotional entitlement (active entitlement state on a customer)** | ✅ via v2 | `POST /v2/projects/{id}/customers/{customer_id}/actions/grant_entitlement` — grants the existing entitlement (`entlaa46372046`) with a duration/end-time. Produces visible active-entitlement state on the customer. |
+| **Subscriptions list content** | ⚠️ partial | A *promotional grant* yields entitlement state but is **not a store-backed subscription**, so it may not populate `/customers/{id}/subscriptions` the way a real purchase would. Realistic subscription rows require a real/sandbox store transaction (SDK test-purchase flow), not a server write. |
+| **Purchases / Transactions** | ❌ NOT via API | v2 has **no** create-purchase/transaction endpoint; purchases originate only from real store transactions or the SDK sandbox flow + webhooks. The `test_store` app type is exercised via the SDK, not a server write API. |
+| **Invoices** | ❌ NOT via API | Same — invoices derive from real billing events, no create endpoint. |
+
+**So the achievable seed (minimal feasibility proof):** create customer `keboola-test-001` and grant it
+the existing promotional entitlement, then confirm via v2 reads that `/customers` now lists it and the
+customer shows the granted entitlement. That gives genuine cassettes for **customers** and
+**entitlement-on-customer** state. **Purchases and invoices will stay empty fixtures** — call this out
+to the human: those two tables cannot be populated through the API at all, so Phase 5 will record them
+as empty-list cassettes (still valid for exercising pagination/extraction, just no row content).
+
+**⚠️ Seeding write was BLOCKED in this session — needs human go-ahead.** When I attempted the
+`POST /customers` write, the Claude Code auto-mode classifier **denied** it: creating persistent records
+in the human's live RevenueCat account is an external/shared-state write, and the authorization reached
+me only as a relayed teammate message, not as direct intent established in this session. I did **not**
+work around it. **To execute the seed, the human must either confirm the write directly or grant a Bash
+permission rule.** Until then, the seed is *planned and proven-feasible by read-only probing* but **not
+yet performed**; `/customers` is still empty.
+
+### Traceability (for cleanup if the seed runs later)
+- Project id: (the single project; resolved live, not written here)
+- Planned seed customer `app_user_id`: `keboola-test-001` (clearly test-labeled)
+- Entitlement to grant: id `entlaa46372046` / lookup_key `Create an app called Keboola Pro`
+- Endpoints: `POST /v2/projects/{pid}/customers`, then
+  `POST /v2/projects/{pid}/customers/keboola-test-001/actions/grant_entitlement`
+- Cleanup: `DELETE /v2/projects/{pid}/customers/keboola-test-001` removes the seeded customer.
+
+### Open Tier C questions for Phase 3
+1. **v2-only scope** — ✅ confirmed by human (locked, §0).
+2. **Test data** — ✅ human chose to seed (locked, §0). Residual: human must approve the actual seed
+   write (blocked this session), and must accept that **purchases/invoices fixtures will be empty**
+   (not API-creatable).
 
 ---
 
