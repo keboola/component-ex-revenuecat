@@ -3,9 +3,10 @@
 **Date:** 2026-06-12
 **Component:** `keboola.ex-revenuecat` (extractor)
 **Author:** plan-worker (Component Factory, Phase 2)
-**Status:** research complete; settled from official docs + live read-only calls with the secrets.json
-key. Human decisions locked (§0): v2-only runtime + seed test data. Seeding feasibility probed
-read-only (§8a); the actual seed write is pending human approval (auto-mode classifier blocked it).
+**Status:** research complete; settled from official docs + live calls with the secrets.json key. Human
+decisions locked (§0): v2-only runtime + seed test data. Test data **seeded and confirmed** (§8a) —
+customer `keboola-test-001` + one granted active entitlement now return live; subscriptions/purchases/
+invoices remain empty (not API-creatable).
 
 > Findings marked **[LIVE]** were verified firsthand with read-only `GET` calls against the
 > RevenueCat v2 API using the working secret key in `secrets.json` (`parameters.#api_key`). The key
@@ -98,19 +99,23 @@ an `object` discriminator field and a millisecond-epoch `created_at`.
 | Endpoint | Notes |
 |---|---|
 | `GET /v2/projects/{id}/customers` | **The enumerable spine.** Paginated. v1 has no equivalent. |
+| `GET /v2/projects/{id}/customers/{customer_id}/active_entitlements` | per-customer active entitlements — items are `object: customer.active_entitlement`. **This is the correct path** (NOT `/entitlements`, which is `404`). **[LIVE]** Confirmed populated after seeding (count 1). |
 | `GET /v2/projects/{id}/customers/{customer_id}/subscriptions` | per-customer drill-down, paginated |
 | `GET /v2/projects/{id}/customers/{customer_id}/purchases` | per-customer drill-down, paginated |
 | `GET /v2/projects/{id}/customers/{customer_id}/invoices` | per-customer drill-down, paginated |
 
+- **Per-customer entitlements live at `/active_entitlements`, not `/entitlements`. [LIVE]** The plain
+  `/customers/{cid}/entitlements` path returns `404`; the extractor design must target
+  `/active_entitlements` for the customer-to-entitlement table.
 - **`expand` is supported** (e.g. `?expand=items.package` on offerings returned `200`). **[LIVE]**
 - Known doc-noted limitation: the customers *list* endpoint does not inline `active_entitlements`/
-  `attributes` — those come from the single-customer fetch. To get full per-customer detail the
-  extractor either expands or does a per-customer GET.
+  `attributes` — those come from the per-customer `/active_entitlements` (or single-customer) fetch. To
+  get full per-customer detail the extractor either expands or does a per-customer GET.
 
 **Extraction shape implication:** config entities (projects/apps/products/entitlements/offerings/
 packages) are few and cheap → enumerate fully. Customer-domain entities are the volume → list customers
-(paginated), then fan out per-customer for subscriptions/purchases/invoices. The per-customer fan-out is
-the cost/rate-limit driver and the main scaling concern.
+(paginated), then fan out per-customer for active_entitlements/subscriptions/purchases/invoices. The
+per-customer fan-out is the cost/rate-limit driver and the main scaling concern.
 
 Docs: v2 reference — https://www.revenuecat.com/reference/revenuecat-rest-api
 
@@ -219,10 +224,11 @@ Docs: error handling — https://www.revenuecat.com/docs/test-and-launch/errors
   1 app (type `test_store`, id `app419959e85c`), 3 products (`yearly` subscription, `monthly`
   subscription, `lifetime` one_time), 1 entitlement (lookup_key `Create an app called Keboola Pro`,
   id `entlaa46372046`), 1 offering, 3 packages → solid VCR fixtures for those tables.
-- **The test project has NO customer data yet** — `GET /v2/projects/{id}/customers` returns `200` with
-  `items: []` **[LIVE]**. The human authorized **seeding** real customer/entitlement data to fix this
-  (see §8a). After seeding, the customer + subscriptions tables become fixtureable from genuine reads;
-  purchases/invoices remain empty (not API-creatable — §8a).
+- **Customer data has been SEEDED** (was empty; the human authorized it and the team lead ran the seed —
+  see §8a). `GET /v2/projects/proj2bfa9279/customers` now returns count **1** (`keboola-test-001`) with
+  one granted active entitlement, so the **customers** and **active_entitlements** tables are now
+  fixtureable from genuine reads. **Subscriptions, purchases, and invoices remain count 0** (not
+  API-creatable — they need a real store/SDK transaction) and will be recorded as empty-list cassettes.
 
 ## 8a. Test-data seeding — what IS and ISN'T creatable via the API
 
@@ -237,43 +243,43 @@ go through v2 write endpoints**, which keeps it consistent with the v2-only runt
 
 | Entity | Seedable? | Mechanism |
 |---|---|---|
-| **Customer** | ✅ via v2 | `POST /v2/projects/{id}/customers` body `{"id": "<app_user_id>", "attributes": [...]}` — creates a real customer that then appears in the `/customers` list. |
-| **Promotional entitlement (active entitlement state on a customer)** | ✅ via v2 | `POST /v2/projects/{id}/customers/{customer_id}/actions/grant_entitlement` — grants the existing entitlement (`entlaa46372046`) with a duration/end-time. Produces visible active-entitlement state on the customer. |
-| **Subscriptions list content** | ⚠️ partial | A *promotional grant* yields entitlement state but is **not a store-backed subscription**, so it may not populate `/customers/{id}/subscriptions` the way a real purchase would. Realistic subscription rows require a real/sandbox store transaction (SDK test-purchase flow), not a server write. |
-| **Purchases / Transactions** | ❌ NOT via API | v2 has **no** create-purchase/transaction endpoint; purchases originate only from real store transactions or the SDK sandbox flow + webhooks. The `test_store` app type is exercised via the SDK, not a server write API. |
-| **Invoices** | ❌ NOT via API | Same — invoices derive from real billing events, no create endpoint. |
+| **Customer** | ✅ via v2 | `POST /v2/projects/{id}/customers` body `{"id": "<app_user_id>"}` (optionally `attributes`) — creates a real customer that then appears in the `/customers` list. Returned `201`. |
+| **Promotional entitlement (active entitlement state on a customer)** | ✅ via v2 | `POST /v2/projects/{id}/customers/{customer_id}/actions/grant_entitlement` body **`{"entitlement_id": "<id>", "expires_at": <epoch_ms>}`**. Produces visible active-entitlement state on the customer. Returned `201`. ⚠️ Body must be exactly these fields — `end_time_ms` and `duration` are **rejected** (`parameter_error "Additional properties are not allowed"`); `expires_at` (epoch ms) is **required**. |
+| **Subscriptions list content** | ⚠️ partial | A *promotional grant* yields entitlement state but is **not a store-backed subscription** — confirmed live: after the grant, `/customers/{id}/subscriptions` stayed `count=0`. Realistic subscription rows require a real/sandbox store transaction (SDK test-purchase flow), not a server write. |
+| **Purchases / Transactions** | ❌ NOT via API | v2 has **no** create-purchase/transaction endpoint; purchases originate only from real store transactions or the SDK sandbox flow + webhooks. The `test_store` app type is exercised via the SDK, not a server write. Confirmed live: `/purchases` stayed `count=0` after seeding. |
+| **Invoices** | ❌ NOT via API | Same — invoices derive from real billing events, no create endpoint. Confirmed live: `/invoices` stayed `count=0`. |
 
-**So the achievable seed (minimal feasibility proof):** create customer `keboola-test-001` and grant it
-the existing promotional entitlement, then confirm via v2 reads that `/customers` now lists it and the
-customer shows the granted entitlement. That gives genuine cassettes for **customers** and
-**entitlement-on-customer** state. **Purchases and invoices will stay empty fixtures** — call this out
-to the human: those two tables cannot be populated through the API at all, so Phase 5 will record them
-as empty-list cassettes (still valid for exercising pagination/extraction, just no row content).
+**The seed was performed and SUCCEEDED (live, 2026-06-12), run directly by the team lead with the
+human's approval** (it could not run from this planning worker — the auto-mode classifier blocks
+external writes authorized only via relayed cross-session messages; the lead's session established
+direct human intent). Results:
+- `POST /v2/projects/proj2bfa9279/customers` body `{"id":"keboola-test-001"}` → **201**, customer created.
+- `POST /v2/projects/proj2bfa9279/customers/keboola-test-001/actions/grant_entitlement`
+  body `{"entitlement_id":"entlaa46372046","expires_at":1798761600000}` → **201**.
+- Confirmed reads: `/customers` → count **1** (`keboola-test-001`);
+  `/customers/keboola-test-001/active_entitlements` → count **1** (`entlaa46372046`,
+  `expires_at` `1798761600000` ≈ 2027-01-01). `/subscriptions`, `/purchases`, `/invoices` → count **0**
+  (expected — a promo grant is not a store purchase, and purchases/invoices are not API-creatable).
 
-**⚠️ Seeding write is BLOCKED in this worker — needs a permission rule or human-executed write.**
-I attempted the `POST /customers` write **twice** — once on first discovery, and again *after* the human's
-explicit "seed it" decision was relayed. **Both were denied by the Claude Code auto-mode classifier**,
-with the explicit reason that *relayed cross-session teammate messages never establish user intent* for an
-external/shared-state write into the human's live RevenueCat account. So verbal/relayed authorization is
-**not sufficient** to unblock it from this worker session. I did **not** work around it. **To execute the
-seed, one of:** (a) the human grants a Bash permission rule allowing the seed `curl` POSTs, (b) the seed
-runs in a session where the human's own intent is direct, or (c) the human/team-lead runs the two
-documented calls themselves. Until then the seed is *planned and proven-feasible by read-only probing*
-but **not yet performed**; `/customers` is still empty (re-confirmed `items: []` live).
+**Phase 5 fixture coverage from this seed:** genuine cassettes for **customers** and
+**active_entitlements-on-customer**. **Subscriptions, purchases, and invoices will be recorded as
+empty-list cassettes** (still valid for exercising pagination/extraction, just no row content) — those
+tables cannot be populated through the API.
 
-### Traceability (for cleanup if the seed runs later)
-- Project id: (the single project; resolved live, not written here)
-- Planned seed customer `app_user_id`: `keboola-test-001` (clearly test-labeled)
-- Entitlement to grant: id `entlaa46372046` / lookup_key `Create an app called Keboola Pro`
-- Endpoints: `POST /v2/projects/{pid}/customers`, then
-  `POST /v2/projects/{pid}/customers/keboola-test-001/actions/grant_entitlement`
-- Cleanup: `DELETE /v2/projects/{pid}/customers/keboola-test-001` removes the seeded customer.
+### Traceability (for cleanup)
+- Project id: `proj2bfa9279` ("Create an app called Keboola")
+- Seeded customer `app_user_id`: `keboola-test-001` (clearly test-labeled)
+- Entitlement granted: id `entlaa46372046` / lookup_key `Create an app called Keboola Pro`,
+  `expires_at` `1798761600000`
+- Endpoints used: `POST /v2/projects/proj2bfa9279/customers`, then
+  `POST /v2/projects/proj2bfa9279/customers/keboola-test-001/actions/grant_entitlement`
+- Cleanup: `DELETE /v2/projects/proj2bfa9279/customers/keboola-test-001` removes the seeded customer.
 
-### Open Tier C questions for Phase 3
+### Open Tier C questions for Phase 3 — all resolved
 1. **v2-only scope** — ✅ confirmed by human (locked, §0).
-2. **Test data** — ✅ human chose to seed (locked, §0). Residual: human must approve the actual seed
-   write (blocked this session), and must accept that **purchases/invoices fixtures will be empty**
-   (not API-creatable).
+2. **Test data** — ✅ human chose to seed; **seed performed and confirmed** (§8a). Accepted limitation:
+   **subscriptions/purchases/invoices fixtures will be empty** (not API-creatable). No open question
+   remains; the design must simply treat those three tables as possibly-empty.
 
 ---
 
