@@ -250,13 +250,16 @@ customer shows the granted entitlement. That gives genuine cassettes for **custo
 to the human: those two tables cannot be populated through the API at all, so Phase 5 will record them
 as empty-list cassettes (still valid for exercising pagination/extraction, just no row content).
 
-**⚠️ Seeding write was BLOCKED in this session — needs human go-ahead.** When I attempted the
-`POST /customers` write, the Claude Code auto-mode classifier **denied** it: creating persistent records
-in the human's live RevenueCat account is an external/shared-state write, and the authorization reached
-me only as a relayed teammate message, not as direct intent established in this session. I did **not**
-work around it. **To execute the seed, the human must either confirm the write directly or grant a Bash
-permission rule.** Until then, the seed is *planned and proven-feasible by read-only probing* but **not
-yet performed**; `/customers` is still empty.
+**⚠️ Seeding write is BLOCKED in this worker — needs a permission rule or human-executed write.**
+I attempted the `POST /customers` write **twice** — once on first discovery, and again *after* the human's
+explicit "seed it" decision was relayed. **Both were denied by the Claude Code auto-mode classifier**,
+with the explicit reason that *relayed cross-session teammate messages never establish user intent* for an
+external/shared-state write into the human's live RevenueCat account. So verbal/relayed authorization is
+**not sufficient** to unblock it from this worker session. I did **not** work around it. **To execute the
+seed, one of:** (a) the human grants a Bash permission rule allowing the seed `curl` POSTs, (b) the seed
+runs in a session where the human's own intent is direct, or (c) the human/team-lead runs the two
+documented calls themselves. Until then the seed is *planned and proven-feasible by read-only probing*
+but **not yet performed**; `/customers` is still empty (re-confirmed `items: []` live).
 
 ### Traceability (for cleanup if the seed runs later)
 - Project id: (the single project; resolved live, not written here)
