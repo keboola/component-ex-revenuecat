@@ -50,7 +50,10 @@ from `component.py`, per spec §3/§4/§6.1/§6.4.
 **Goal:** pure `@staticmethod` flatteners per spec §4.4/§6.2.
 - `_flatten_product` (lift `subscription.{duration,grace_period_duration,trial_duration}`),
   `_flatten_subscription` (lift `total_revenue_in_usd.{gross,proceeds,tax,commission,currency}`; split the
-  nested `entitlements` list-envelope out for the child table).
+  nested `entitlements` list-envelope into the `subscription_entitlements` **linkage** rows = `subscription_id`
+  (injected) + `entitlement_id` only, NOT the full entitlement columns).
+- `active_entitlements`: item is `{entitlement_id, expires_at, object}` — **no top-level `id`/`customer_id`**;
+  emit `customer_id` (injected) + `entitlement_id` + `expires_at`, PK `customer_id + entitlement_id`.
 - Strip envelope keys (`object`/`next_page`/`url`); inject parent ids (`project_id`/`customer_id`/
   `offering_id`) into child rows.
 **Done when:** given the real sample shapes (research §3), produce flat dict rows + the child-row list;
@@ -90,8 +93,10 @@ spec §5.2.
   `options.async.action: listProjects`), `entities` (multipick enum), `load_type` (enum dropdown);
   `propertyOrder` of exactly these; titles/descriptions on required fields; `format: "test-connection"`
   widget (no `options.async`); no test/sandbox values in enums/defaults.
-- `@sync_action` `testConnection` (GET `/v2/projects?limit=1`; success/clear failure) and `listProjects`
-  (returns project options). Each `options.async.action` matched by a `@sync_action`.
+- `@sync_action` `testConnection` (GET `/v2/projects?limit=1`; 200→success, 401→clear-failure, and
+  **any other error — 5xx/network/timeout/wrong base URL — caught and returned as a clean failure object,
+  never an unhandled exception**) and `listProjects` (returns project options; errors → clean empty/failed
+  result, not an exception). Each `options.async.action` matched by a `@sync_action`.
 **Done when:** schema validates; sync actions importable; `#api_key` name matches the model `alias`.
 **Verify:** schema-tester / Playwright per `component-build-ui`; run `testConnection` against a cassette.
 
@@ -123,9 +128,11 @@ empty-list. Sanitizers redact `Authorization`/`sk_` and customer PII.
 **Done when:** cassettes recorded; replay is deterministic offline.
 
 ### Task 10 — assertions + full suite green — owner: `component-test`
-**Goal:** assert produced tables/columns/PKs against a real produced row (not just the manifest); empty
-purchases/invoices tables present. Sync-action tests (testConnection 200/401, listProjects). Full
-`pytest` green.
+**Goal:** assert produced tables/columns/PKs against a real produced row (not just the manifest) —
+including `customer_active_entitlements` PK `customer_id+entitlement_id` and the `subscription_entitlements`
+linkage shape; empty purchases/invoices tables present. Sync-action tests: `testConnection` 200→success,
+401→failure, **and a non-401 error (5xx/network) → clean failure object (not an exception)**; `listProjects`
+returns options. Full `pytest` green.
 **Done when:** `pytest` prints `N passed`; cassette-validation gate passes (sanitized + recordings match
 intent).
 

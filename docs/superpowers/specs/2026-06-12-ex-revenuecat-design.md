@@ -36,11 +36,11 @@ All entities are v2 reads. Each output table is named `<entity>` and lands in th
 | `offerings` | `GET /v2/projects/{pid}/offerings` | `id` | |
 | `packages` | `GET /v2/projects/{pid}/offerings/{oid}/packages` | `id` | **Nested under offerings** (project-level `/packages` is 404). Carries `offering_id` (injected from the parent). |
 | `customers` | `GET /v2/projects/{pid}/customers` | `id` | The enumerable spine of the customer domain. |
-| `customer_active_entitlements` | `GET /v2/projects/{pid}/customers/{cid}/active_entitlements` | `id` + `customer_id` | Path is `/active_entitlements`, NOT `/entitlements` (404). Carries `customer_id`. |
+| `customer_active_entitlements` | `GET /v2/projects/{pid}/customers/{cid}/active_entitlements` | `customer_id` (injected) + `entitlement_id` | Path is `/active_entitlements`, NOT `/entitlements` (404). **Live item shape: `{entitlement_id, expires_at, object}` — no top-level `id`, no `customer_id`** (re-confirmed live 2026-06-12). The extractor injects `customer_id` from the parent. Columns: `customer_id` (injected), `entitlement_id`, `expires_at` (epoch ms). |
 | `subscriptions` | `GET /v2/projects/{pid}/customers/{cid}/subscriptions` | `id` | `total_revenue_in_usd` flattened; nested `entitlements` list → child table (§4.4). Carries `customer_id`. |
 | `purchases` | `GET /v2/projects/{pid}/customers/{cid}/purchases` | `id` | Possibly empty (no seed data; not API-creatable). |
 | `invoices` | `GET /v2/projects/{pid}/customers/{cid}/invoices` | `id` | Possibly empty (same). |
-| `subscription_entitlements` | (from `subscriptions[].entitlements.items`) | `subscription_id` + `id` | Child table of the nested entitlements list on each subscription (§4.4). |
+| `subscription_entitlements` | (from `subscriptions[].entitlements.items`) | `subscription_id` (injected) + `entitlement_id` | **Linkage table only** — stores `subscription_id` (injected) + `entitlement_id` (the linked entitlement's id), NOT the duplicated entitlement columns (those live in `entitlements`). See §4.4. |
 
 Project id and customer id from parent objects are **injected as columns** into child tables so the
 output is joinable without the caller having to thread ids back together.
@@ -94,11 +94,17 @@ secrets.
 
 ### 2.5 Sync actions
 
-- **`testConnection`** — calls `GET /v2/projects?limit=1` with the key; 200 → success, 401
-  `authentication_error` → failure with a clear message. Validates the credential in the UI before runtime.
+- **`testConnection`** — calls `GET /v2/projects?limit=1` with the key; `200` → success;
+  `401 authentication_error` → failure with a clear "invalid API key" message. **Any other failure —
+  network error, timeout, 5xx, or a wrong/unreachable base URL — is also caught and returned as a clean
+  sync-action failure object with a readable message; it must NOT raise an unhandled exception** (an
+  unhandled exception in a sync action surfaces as an opaque internal error in the UI). The handler wraps
+  the client call in try/except over `requests.RequestException`/`RetryError`/`RevenueCatClientError` and
+  maps every outcome to success-or-failure.
 - **`listProjects`** (dropdown, optional) — populates an optional `project_id` filter from
   `GET /v2/projects` so a multi-project account can scope the run to one project via a valid pick rather
-  than free text. (Sync action implementation is owned by `component-build-ui`.)
+  than free text. Same defensive contract: errors return an empty/failed result cleanly, not an exception.
+  (Sync action implementation is owned by `component-build-ui`.)
 
 ### 2.6 Output bucket / table naming
 
@@ -157,9 +163,12 @@ Per-domain (research §5): customer-info 480/min, project-configuration 60/min, 
   **flatten** into the `subscriptions` row as `total_revenue_in_usd_gross`, `_proceeds`, `_tax`,
   `_commission`, `_currency`.
 - **`subscriptions[].entitlements`** = a **nested list-envelope** `{object:"list", items:[entitlement…]}`
-  → **child table `subscription_entitlements`** (PK `subscription_id` + entitlement `id`), one row per
-  entitlement, with `subscription_id` injected. (Flattening a variable-length list into columns is wrong;
-  a child table keeps it joinable.)
+  → **child linkage table `subscription_entitlements`**, one row per linked entitlement. It stores **only
+  the linkage**: `subscription_id` (injected) + `entitlement_id` (the entitlement's `id`) — PK is the pair.
+  It does **not** re-duplicate the full entitlement columns (`lookup_key`, `display_name`, `state`, …);
+  those already live once in the `entitlements` table and join on `entitlement_id`. (Flattening a
+  variable-length list into columns is wrong; a normalized linkage table keeps it joinable without
+  duplication.)
 - Parent ids (`project_id`, `customer_id`, `offering_id`) are **injected as columns** into the relevant
   child tables.
 
@@ -245,7 +254,9 @@ Single-config schema (`configRowSchema.json` stays empty). Field/UI design (chec
 
 **Sync actions** (owned by `component-build-ui`): `testConnection` (hardcoded widget; calls
 `GET /v2/projects?limit=1`) and `listProjects` (`@sync_action` returning project ids/names as dropdown
-options). Every `options.async.action` value has a matching `@sync_action` in code.
+options). Every `options.async.action` value has a matching `@sync_action` in code. **Both handlers catch
+all failure modes — 401, other 4xx, 5xx, network error/timeout, wrong base URL — and return a clean
+sync-action result (success/failure or empty options), never an unhandled exception** (§2.5).
 
 ### 6.1 Structure (architecture dim)
 
