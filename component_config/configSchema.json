@@ -1,19 +1,77 @@
 {
   "type": "object",
-  "title": "extractor configuration",
+  "title": "RevenueCat Extractor Configuration",
   "required": [
-    "print_hello"
+    "#api_key"
   ],
   "properties": {
-    "print_hello": {
-      "type": "boolean",
-      "title": "Print Hello",
+    "#api_key": {
+      "type": "string",
+      "format": "password",
+      "title": "RevenueCat API Key",
+      "description": "V2 secret key (sk_…) for the RevenueCat REST API v2. Mint one in the RevenueCat dashboard under Settings → API keys → Add new key (type: V2 Secret). Grant at minimum read scopes for all project resources.",
       "propertyOrder": 1
     },
-    "debug": {
-      "type": "boolean",
-      "title": "Debug",
-      "propertyOrder": 2
+    "test_connection": {
+      "type": "button",
+      "format": "test-connection",
+      "propertyOrder": 2,
+      "options": {
+        "async": {
+          "label": "Test Connection",
+          "action": "testConnection"
+        }
+      }
+    },
+    "project_id": {
+      "type": "string",
+      "title": "Project",
+      "description": "Optional — restrict extraction to one RevenueCat project. Leave empty to extract all projects the API key can access.",
+      "enum": [],
+      "format": "select",
+      "options": {
+        "async": {
+          "label": "Load projects",
+          "action": "listProjects"
+        }
+      },
+      "propertyOrder": 3
+    },
+    "entities": {
+      "type": "array",
+      "title": "Entity groups",
+      "description": "Which entity groups to extract. 'config' = projects/apps/products/entitlements/offerings/packages (lightweight). 'customers' = customers + active_entitlements/subscriptions/purchases/invoices (heavier fan-out, one API call per customer per entity type).",
+      "items": {
+        "type": "string",
+        "enum": [
+          "config",
+          "customers"
+        ]
+      },
+      "format": "checkbox",
+      "default": [
+        "config",
+        "customers"
+      ],
+      "uniqueItems": true,
+      "propertyOrder": 4
+    },
+    "load_type": {
+      "type": "string",
+      "title": "Load type",
+      "description": "full_load re-extracts all data on every run (RevenueCat v2 has no incremental cursor, so this is the only correct mode for v1). Writes are still incremental upserts on the primary key — no duplicate rows on re-run.",
+      "enum": [
+        "full_load",
+        "incremental_load"
+      ],
+      "options": {
+        "enum_titles": [
+          "Full load (recommended)",
+          "Incremental load (reserved for future use)"
+        ]
+      },
+      "default": "full_load",
+      "propertyOrder": 5
     }
   }
 }

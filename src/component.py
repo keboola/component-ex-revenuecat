@@ -8,9 +8,11 @@ import csv
 import logging
 from datetime import UTC, datetime
 
-from keboola.component.base import ComponentBase
+import requests
+from keboola.component.base import ComponentBase, sync_action
 from keboola.component.dao import BaseType, ColumnDefinition
 from keboola.component.exceptions import UserException
+from keboola.component.sync_actions import MessageType, SelectElement, ValidationResult
 from pydantic import ValidationError
 
 from client.revenuecat_client import RevenueCatClient, RevenueCatClientError
@@ -424,6 +426,83 @@ class Component(ComponentBase):
                 f"({exc.error_type}: {exc.message})"
             )
         return UserException(f"RevenueCat API error ({exc.error_type}): {exc.message}")
+
+    # ------------------------------------------------------------------
+    # Sync actions
+    # ------------------------------------------------------------------
+
+    @sync_action("testConnection")
+    def test_connection(self) -> ValidationResult:
+        """
+        Validate the RevenueCat API key by probing GET /v2/projects?limit=1.
+
+        Returns a ValidationResult (success or failure) — never raises an unhandled exception.
+        The @sync_action wrapper catches any un-caught exception and writes it to stderr with
+        exit 1, but the defensive try/except below ensures we always return a clean result object
+        (visible as a coloured message in the UI) instead of an opaque internal-error banner.
+
+        __init__ builds self._client from #api_key before this method is called.  A blank or
+        missing key causes __init__ to raise UserException, which the @sync_action wrapper
+        converts to a stderr message + exit 1 — surfaced cleanly to the user as a validation
+        error, not an opaque failure.
+        """
+        try:
+            self._client.test_connection()
+            return ValidationResult("Connection successful.", MessageType.SUCCESS)
+        except RevenueCatClientError as exc:
+            if exc.error_type == "authentication_error":
+                return ValidationResult(
+                    "Invalid RevenueCat API key — check the #api_key value.",
+                    MessageType.ERROR,
+                )
+            return ValidationResult(
+                f"Connection test failed: {exc.message}",
+                MessageType.ERROR,
+            )
+        except requests.RequestException as exc:
+            return ValidationResult(
+                f"Could not reach RevenueCat: {exc}",
+                MessageType.ERROR,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return ValidationResult(
+                f"Connection test failed: {exc}",
+                MessageType.ERROR,
+            )
+
+    @sync_action("listProjects")
+    def list_projects_action(self) -> list[SelectElement]:
+        """
+        Populate the project_id dropdown with projects visible to the configured API key.
+
+        Returns an empty list on any error — the dropdown simply shows no options, which
+        is a safe degradation (the field is optional; the user can still type an id manually
+        or leave it blank to extract all projects).
+
+        Named list_projects_action to avoid shadowing RevenueCatClient.list_projects; the
+        @sync_action decorator registers the action id "listProjects" independently of the
+        Python method name.
+        """
+        try:
+            projects = self._client.list_projects()
+            result = []
+            for p in projects:
+                project_id = p.get("id")
+                if not project_id:
+                    # Skip malformed entries that have no id — cannot build a valid SelectElement.
+                    logger.debug("Skipping project entry with no id: %s", p)
+                    continue
+                result.append(SelectElement(value=project_id, label=p.get("name") or project_id))
+            return result
+        except RevenueCatClientError as exc:
+            logger.debug("listProjects sync action failed (RevenueCatClientError): %s", exc)
+            return []
+        except requests.RequestException as exc:
+            logger.debug("listProjects sync action failed (RequestException): %s", exc)
+            return []
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("listProjects sync action failed (unexpected): %s", exc)
+            return []
 
 
 """
