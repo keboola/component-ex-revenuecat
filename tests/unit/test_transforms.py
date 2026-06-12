@@ -8,6 +8,7 @@ ComponentBase.__init__ side effects.
 
 from __future__ import annotations
 
+import json
 import unittest
 
 from component import Component
@@ -316,6 +317,59 @@ class TestFlattenActiveEntitlement(unittest.TestCase):
     def test_object_key_not_in_output(self) -> None:
         result = Component._flatten_active_entitlement(self._sample_item(), "keboola-test-001")
         self.assertNotIn("object", result)
+
+
+class TestFlattenOffering(unittest.TestCase):
+    """
+    _flatten_offering strips the list envelope and JSON-serializes `metadata` into a STRING column.
+
+    A populated metadata object must become parseable JSON (double-quoted), NOT Python's
+    `str(dict)` (single-quoted). A None metadata must stay None (empty cell), not the literal "null".
+    """
+
+    def _sample_offering(self, metadata: object) -> dict:
+        return {
+            "id": "ofrng68e4239d0f",
+            "lookup_key": "default",
+            "display_name": "The standard set of packages",
+            "is_current": True,
+            "metadata": metadata,
+            "project_id": "proj2bfa9279",
+            "state": "active",
+            "created_at": 1781183083385,
+            "object": "offering",
+        }
+
+    def test_populated_metadata_is_valid_json(self) -> None:
+        result = Component._flatten_offering(self._sample_offering({"tier": "gold", "rank": 1}))
+        # Round-trips through json.loads — i.e. it is real JSON, not str(dict).
+        self.assertEqual(json.loads(result["metadata"]), {"tier": "gold", "rank": 1})
+        # Real JSON uses double quotes; str(dict) would use single quotes.
+        self.assertNotIn("'", result["metadata"])
+
+    def test_none_metadata_stays_none(self) -> None:
+        result = Component._flatten_offering(self._sample_offering(None))
+        self.assertIsNone(result["metadata"])
+
+    def test_missing_metadata_key_no_error(self) -> None:
+        offering = self._sample_offering(None)
+        del offering["metadata"]
+        result = Component._flatten_offering(offering)
+        self.assertIsNone(result.get("metadata"))
+
+    def test_empty_dict_metadata_serialized(self) -> None:
+        result = Component._flatten_offering(self._sample_offering({}))
+        self.assertEqual(result["metadata"], "{}")
+
+    def test_envelope_keys_removed(self) -> None:
+        result = Component._flatten_offering(self._sample_offering(None))
+        self.assertNotIn("object", result)
+
+    def test_other_fields_preserved(self) -> None:
+        result = Component._flatten_offering(self._sample_offering(None))
+        self.assertEqual(result["id"], "ofrng68e4239d0f")
+        self.assertEqual(result["lookup_key"], "default")
+        self.assertIs(result["is_current"], True)
 
 
 class TestStripEnvelope(unittest.TestCase):

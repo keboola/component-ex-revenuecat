@@ -55,23 +55,6 @@
       ],
       "uniqueItems": true,
       "propertyOrder": 4
-    },
-    "load_type": {
-      "type": "string",
-      "title": "Load type",
-      "description": "full_load re-extracts all data on every run (RevenueCat v2 has no incremental cursor, so this is the only correct mode for v1). Writes are still incremental upserts on the primary key — no duplicate rows on re-run.",
-      "enum": [
-        "full_load",
-        "incremental_load"
-      ],
-      "options": {
-        "enum_titles": [
-          "Full load (recommended)",
-          "Incremental load (reserved for future use)"
-        ]
-      },
-      "default": "full_load",
-      "propertyOrder": 5
     }
   }
 }

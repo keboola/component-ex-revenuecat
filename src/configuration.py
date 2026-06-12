@@ -1,16 +1,11 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class EntityGroup(StrEnum):
     config = "config"
     customers = "customers"
-
-
-class LoadType(StrEnum):
-    full_load = "full_load"
-    incremental_load = "incremental_load"
 
 
 class Configuration(BaseModel):
@@ -19,12 +14,6 @@ class Configuration(BaseModel):
     api_key: str = Field(alias="#api_key")
     project_id: str | None = None
     entities: list[EntityGroup] = [EntityGroup.config, EntityGroup.customers]
-    load_type: LoadType = LoadType.full_load
-
-    @computed_field
-    @property
-    def incremental(self) -> bool:
-        return self.load_type == LoadType.incremental_load
 
     @field_validator("api_key")
     @classmethod

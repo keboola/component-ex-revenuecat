@@ -140,5 +140,59 @@ class TestNonRetryableError(unittest.TestCase):
         mock_sleep.assert_not_called()
 
 
+class TestRetryable4xx(unittest.TestCase):
+    """
+    Scenario 4: a non-429 4xx whose body explicitly says retryable: true must be retried.
+
+    Before the fix the guard was `if not error.retryable or status < 500: raise`, so any 4xx
+    (even retryable: true) raised immediately — only 429 was ever retried. The corrected guard
+    `if not error.retryable and status < 500: raise` lets a body-flagged retryable 4xx retry.
+    """
+
+    @patch("time.sleep")
+    def test_retryable_409_then_200_retries_and_succeeds(self, mock_sleep: MagicMock) -> None:
+        retryable_409_body = {
+            "object": "error",
+            "type": "conflict",
+            "message": "Resource is temporarily locked",
+            "retryable": True,
+        }
+        items = [{"id": "proj1"}]
+        resp_409 = _make_response(409, retryable_409_body)
+        resp_200 = _make_response(200, _list_body(items, next_page=None))
+
+        client = RevenueCatClient(api_key="sk_test")
+
+        with patch.object(client._session, "get", side_effect=[resp_409, resp_200]) as mock_get:
+            result = client.list_projects()
+
+        self.assertEqual(result, items)
+        # Two HTTP calls: the 409 was retried (not raised immediately).
+        self.assertEqual(mock_get.call_count, 2)
+        # Backoff slept once before the retry.
+        mock_sleep.assert_called_once()
+
+    @patch("time.sleep")
+    def test_non_retryable_400_still_raises_immediately(self, mock_sleep: MagicMock) -> None:
+        """A 4xx with retryable: false must still fail immediately — no over-retrying."""
+        bad_request_body = {
+            "object": "error",
+            "type": "invalid_request",
+            "message": "Bad parameter",
+            "retryable": False,
+        }
+        resp_400 = _make_response(400, bad_request_body)
+
+        client = RevenueCatClient(api_key="sk_test")
+
+        with patch.object(client._session, "get", side_effect=[resp_400]) as mock_get:
+            with self.assertRaises(RevenueCatClientError) as ctx:
+                client.list_projects()
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(mock_get.call_count, 1)
+        mock_sleep.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

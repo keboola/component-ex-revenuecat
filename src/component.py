@@ -5,8 +5,8 @@ Orchestrates extraction of RevenueCat v2 data into Keboola Storage tables.
 """
 
 import csv
+import json
 import logging
-from datetime import UTC, datetime
 
 import requests
 from keboola.component.base import ComponentBase, sync_action
@@ -111,9 +111,10 @@ SCHEMAS: dict[str, dict[str, ColumnDefinition]] = {
         "created_at": ColumnDefinition(data_types=_I()),
     },
     "customers": {
+        # The v2 /customers object has no `created_at`; `first_seen_at` / `last_seen_at` are the
+        # captured timestamps.
         "id": ColumnDefinition(data_types=_S(), primary_key=True),
         "project_id": ColumnDefinition(data_types=_S()),
-        "created_at": ColumnDefinition(data_types=_I()),
         "first_seen_at": ColumnDefinition(data_types=_I()),
         "last_seen_at": ColumnDefinition(data_types=_I()),
     },
@@ -195,18 +196,21 @@ class Component(ComponentBase):
     # ------------------------------------------------------------------
 
     def run(self) -> None:
-        state = self._load_state()
-        logger.debug("Last run: %s", state.get("last_run"))
-        run_started_at = datetime.now(UTC)
         try:
             all_projects = self._client.list_projects()
             if not all_projects:
                 logger.info("No projects found for the given API key")
                 return
-            project_ids = [self._config.project_id] if self._config.project_id else [p["id"] for p in all_projects]
+            if self._config.project_id:
+                project_ids = [self._config.project_id]
+            else:
+                project_ids = [p["id"] for p in all_projects if p.get("id")]
             if EntityGroup.config in self._config.entities:
                 self._write_table(
-                    "projects", [self._strip_envelope(p) for p in all_projects], _PKS["projects"], SCHEMAS["projects"]
+                    "projects",
+                    [self._strip_envelope(p) for p in all_projects if p.get("id")],
+                    _PKS["projects"],
+                    SCHEMAS["projects"],
                 )
                 for pid in project_ids:
                     self._extract_config_entities(pid)
@@ -215,7 +219,10 @@ class Component(ComponentBase):
                     self._extract_customer_domain(pid)
         except RevenueCatClientError as exc:
             raise self._map_client_error(exc) from exc
-        self._save_state(run_started_at)
+        except (KeyError, TypeError, ValueError) as exc:
+            # A malformed-but-HTTP-200 payload (missing/oddly-typed keys) must surface as a
+            # user-actionable error (exit 1), never an opaque exit 2.
+            raise UserException(f"Unexpected RevenueCat API response shape: {exc}") from exc
 
     # ------------------------------------------------------------------
     # Traversal methods
@@ -234,13 +241,16 @@ class Component(ComponentBase):
         logger.info("Project %s: fetched %d entitlements", pid, len(entitlements))
         self._write_table("entitlements", entitlements, _PKS["entitlements"], SCHEMAS["entitlements"])
 
-        offerings = [self._strip_envelope(o) for o in self._client.list_offerings(pid)]
+        offerings = [self._flatten_offering(o) for o in self._client.list_offerings(pid)]
         logger.info("Project %s: fetched %d offerings", pid, len(offerings))
         self._write_table("offerings", offerings, _PKS["offerings"], SCHEMAS["offerings"])
 
         packages: list[dict] = []
         for offering in offerings:
-            oid = offering["id"]
+            oid = offering.get("id")
+            if not oid:
+                logger.warning("Project %s: skipping offering with no id: %s", pid, offering)
+                continue
             for pkg in self._client.list_packages(pid, oid):
                 row = self._strip_envelope(pkg)
                 row["offering_id"] = oid
@@ -265,7 +275,10 @@ class Component(ComponentBase):
         invoice_rows: list[dict] = []
 
         for idx, customer in enumerate(raw_customers, 1):
-            cid = customer["id"]
+            cid = customer.get("id")
+            if not cid:
+                logger.warning("Project %s: skipping customer with no id: %s", pid, customer)
+                continue
             logger.debug("Processing customer %d/%d (id: %s)", idx, len(raw_customers), cid)
 
             for item in self._client.list_customer_active_entitlements(pid, cid):
@@ -322,6 +335,21 @@ class Component(ComponentBase):
         for key in ("object", "next_page", "url"):
             result.pop(key, None)
         return result
+
+    @staticmethod
+    def _flatten_offering(offering: dict) -> dict:
+        """
+        Strip the list envelope and JSON-serialize the `metadata` object into a STRING column.
+
+        `metadata` is an arbitrary JSON object on the API. Writing it raw would coerce a populated
+        object to Python's `str(dict)` (single-quoted, not valid JSON) in the CSV; json.dumps keeps
+        it as parseable JSON. A None metadata stays None (empty cell), not the literal "null".
+        """
+        row = Component._strip_envelope(offering)
+        metadata = row.get("metadata")
+        if metadata is not None:
+            row["metadata"] = json.dumps(metadata)
+        return row
 
     @staticmethod
     def _flatten_product(product: dict) -> dict:
@@ -426,16 +454,6 @@ class Component(ComponentBase):
         logger.debug("Wrote table %s: %d rows", name, len(rows))
 
     # ------------------------------------------------------------------
-    # State helpers
-    # ------------------------------------------------------------------
-
-    def _load_state(self) -> dict:
-        return self.get_state_file() or {}
-
-    def _save_state(self, run_started_at: datetime) -> None:
-        self.write_state_file({"last_run": run_started_at.isoformat()})
-
-    # ------------------------------------------------------------------
     # Error mapping
     # ------------------------------------------------------------------
 
@@ -509,9 +527,10 @@ class Component(ComponentBase):
         """
         Populate the project_id dropdown with projects visible to the configured API key.
 
-        Returns an empty list on any error — the dropdown simply shows no options, which
-        is a safe degradation (the field is optional; the user can still type an id manually
-        or leave it blank to extract all projects).
+        On a bad API key (authentication_error) the action raises UserException so the user sees a
+        clear "check your key" message rather than a silently empty dropdown. Transient or
+        unexpected failures still degrade to an empty list — the field is optional, so the user can
+        type an id manually or leave it blank to extract all projects.
 
         Named list_projects_action to avoid shadowing RevenueCatClient.list_projects; the
         @sync_action decorator registers the action id "listProjects" independently of the
@@ -529,6 +548,8 @@ class Component(ComponentBase):
                 result.append(SelectElement(value=project_id, label=p.get("name") or project_id))
             return result
         except RevenueCatClientError as exc:
+            if exc.error_type == "authentication_error":
+                raise UserException("Invalid RevenueCat API key — check the #api_key value.") from exc
             logger.debug("listProjects sync action failed (RevenueCatClientError): %s", exc)
             return []
         except requests.RequestException as exc:

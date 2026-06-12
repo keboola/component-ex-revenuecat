@@ -157,8 +157,9 @@ class RevenueCatClient:
             # 5xx or any response with retryable: true
             error = _error_from_response(response)
 
-            if not error.retryable or response.status_code < 500:
+            if not error.retryable and response.status_code < 500:
                 # 4xx with retryable: false → immediate failure; do not retry.
+                # A 4xx that the body explicitly marks retryable:true (not just 429) still retries.
                 raise error
 
             # 5xx or retryable: true → exponential backoff with jitter
@@ -176,8 +177,14 @@ class RevenueCatClient:
             )
             time.sleep(wait_s)
 
-        # Retries exhausted — surface the final error.
-        assert last_error is not None  # always set if we exit the loop
+        # Retries exhausted — surface the final error. last_error is always set if we exit the
+        # loop via break, but guard explicitly so this survives `python -O` (which strips asserts).
+        if last_error is None:
+            raise RevenueCatClientError(
+                error_type="unknown_error",
+                message=f"Request to {url} failed after {MAX_ATTEMPTS} attempts with no captured error.",
+                retryable=False,
+            )
         raise last_error
 
     @staticmethod
@@ -254,7 +261,7 @@ class RevenueCatClient:
             items = body.get("items", [])
             all_items.extend(items)
             next_page: str | None = body.get("next_page")
-            logger.info(
+            logger.debug(
                 "Page %d fetched %d items (running total: %d) from %s",
                 page_num,
                 len(items),

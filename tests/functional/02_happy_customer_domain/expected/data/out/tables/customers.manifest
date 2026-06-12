@@ -26,15 +26,6 @@
       "nullable": true
     },
     {
-      "name": "created_at",
-      "data_type": {
-        "base": {
-          "type": "INTEGER"
-        }
-      },
-      "nullable": true
-    },
-    {
       "name": "first_seen_at",
       "data_type": {
         "base": {
