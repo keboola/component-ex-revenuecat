@@ -1,94 +1,433 @@
 """
-Template Component main class.
+keboola.ex-revenuecat — main component.
 
+Orchestrates extraction of RevenueCat v2 data into Keboola Storage tables.
 """
 
 import csv
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from keboola.component.base import ComponentBase
+from keboola.component.dao import BaseType, ColumnDefinition
 from keboola.component.exceptions import UserException
+from pydantic import ValidationError
 
-from configuration import Configuration
+from client.revenuecat_client import RevenueCatClient, RevenueCatClientError
+from configuration import Configuration, EntityGroup
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Per-table schemas — column order determines CSV field order.
+# Native types applied per spec §6.2 and research §3.
+# FLAG: purchases and invoices column types are docs-derived (empty fixtures in live test data;
+#       no live rows available for verification — see spec §9 risk 1).
+# ---------------------------------------------------------------------------
+
+_S = BaseType.string
+_I = BaseType.integer
+_N = BaseType.numeric
+_B = BaseType.boolean
+
+SCHEMAS: dict[str, dict[str, ColumnDefinition]] = {
+    "projects": {
+        "id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "name": ColumnDefinition(data_types=_S()),
+        "created_at": ColumnDefinition(data_types=_I()),
+        "icon_url": ColumnDefinition(data_types=_S()),
+        "icon_url_large": ColumnDefinition(data_types=_S()),
+    },
+    "apps": {
+        "id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "name": ColumnDefinition(data_types=_S()),
+        "type": ColumnDefinition(data_types=_S()),
+        "project_id": ColumnDefinition(data_types=_S()),
+        "created_at": ColumnDefinition(data_types=_I()),
+    },
+    "products": {
+        "id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "store_identifier": ColumnDefinition(data_types=_S()),
+        "type": ColumnDefinition(data_types=_S()),
+        "one_time": ColumnDefinition(data_types=_B()),
+        "display_name": ColumnDefinition(data_types=_S()),
+        "app_id": ColumnDefinition(data_types=_S()),
+        "state": ColumnDefinition(data_types=_S()),
+        "created_at": ColumnDefinition(data_types=_I()),
+        "subscription_duration": ColumnDefinition(data_types=_S()),
+        "subscription_grace_period_duration": ColumnDefinition(data_types=_S()),
+        "subscription_trial_duration": ColumnDefinition(data_types=_S()),
+    },
+    "entitlements": {
+        "id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "lookup_key": ColumnDefinition(data_types=_S()),
+        "display_name": ColumnDefinition(data_types=_S()),
+        "project_id": ColumnDefinition(data_types=_S()),
+        "state": ColumnDefinition(data_types=_S()),
+        "created_at": ColumnDefinition(data_types=_I()),
+    },
+    "offerings": {
+        "id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "lookup_key": ColumnDefinition(data_types=_S()),
+        "display_name": ColumnDefinition(data_types=_S()),
+        "is_current": ColumnDefinition(data_types=_B()),
+        "metadata": ColumnDefinition(data_types=_S()),
+        "project_id": ColumnDefinition(data_types=_S()),
+        "state": ColumnDefinition(data_types=_S()),
+        "created_at": ColumnDefinition(data_types=_I()),
+    },
+    "packages": {
+        "id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "offering_id": ColumnDefinition(data_types=_S()),
+        "lookup_key": ColumnDefinition(data_types=_S()),
+        "display_name": ColumnDefinition(data_types=_S()),
+        "position": ColumnDefinition(data_types=_I()),
+        "created_at": ColumnDefinition(data_types=_I()),
+    },
+    "customers": {
+        "id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "project_id": ColumnDefinition(data_types=_S()),
+        "created_at": ColumnDefinition(data_types=_I()),
+        "first_seen_at": ColumnDefinition(data_types=_I()),
+        "last_seen_at": ColumnDefinition(data_types=_I()),
+    },
+    "customer_active_entitlements": {
+        "customer_id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "entitlement_id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "expires_at": ColumnDefinition(data_types=_I()),
+    },
+    "subscriptions": {
+        "id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "customer_id": ColumnDefinition(data_types=_S()),
+        "original_customer_id": ColumnDefinition(data_types=_S()),
+        "product_id": ColumnDefinition(data_types=_S()),
+        "store": ColumnDefinition(data_types=_S()),
+        "status": ColumnDefinition(data_types=_S()),
+        "environment": ColumnDefinition(data_types=_S()),
+        "ownership": ColumnDefinition(data_types=_S()),
+        "gives_access": ColumnDefinition(data_types=_B()),
+        "auto_renewal_status": ColumnDefinition(data_types=_S()),
+        "starts_at": ColumnDefinition(data_types=_I()),
+        "ends_at": ColumnDefinition(data_types=_I()),
+        "current_period_starts_at": ColumnDefinition(data_types=_I()),
+        "current_period_ends_at": ColumnDefinition(data_types=_I()),
+        "store_subscription_identifier": ColumnDefinition(data_types=_S()),
+        "presented_offering_id": ColumnDefinition(data_types=_S()),
+        "management_url": ColumnDefinition(data_types=_S()),
+        "country": ColumnDefinition(data_types=_S()),
+        "pending_payment": ColumnDefinition(data_types=_B()),
+        "total_revenue_in_usd_gross": ColumnDefinition(data_types=_N()),
+        "total_revenue_in_usd_proceeds": ColumnDefinition(data_types=_N()),
+        "total_revenue_in_usd_tax": ColumnDefinition(data_types=_N()),
+        "total_revenue_in_usd_commission": ColumnDefinition(data_types=_N()),
+        "total_revenue_in_usd_currency": ColumnDefinition(data_types=_S()),
+    },
+    "subscription_entitlements": {
+        "subscription_id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "entitlement_id": ColumnDefinition(data_types=_S(), primary_key=True),
+    },
+    # FLAG: purchases and invoices schemas are docs-derived — no live rows available for
+    # verification (purchases/invoices are not API-creatable; only empty-list cassettes exist).
+    "purchases": {
+        "id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "customer_id": ColumnDefinition(data_types=_S()),
+        "product_id": ColumnDefinition(data_types=_S()),
+        "store": ColumnDefinition(data_types=_S()),
+        "purchased_at": ColumnDefinition(data_types=_I()),
+        "created_at": ColumnDefinition(data_types=_I()),
+        "revenue_in_usd": ColumnDefinition(data_types=_N()),
+    },
+    "invoices": {
+        "id": ColumnDefinition(data_types=_S(), primary_key=True),
+        "customer_id": ColumnDefinition(data_types=_S()),
+        "issued_at": ColumnDefinition(data_types=_I()),
+        "created_at": ColumnDefinition(data_types=_I()),
+        "total_amount": ColumnDefinition(data_types=_N()),
+        "currency": ColumnDefinition(data_types=_S()),
+    },
+}
+
+# Primary keys per table — derived from the schema (columns marked primary_key=True).
+_PKS: dict[str, list[str]] = {
+    name: [col for col, defn in schema.items() if defn.primary_key] for name, schema in SCHEMAS.items()
+}
 
 
 class Component(ComponentBase):
-    """
-    Extends base class for general Python components. Initializes the CommonInterface
-    and performs configuration validation.
+    """RevenueCat v2 extractor component."""
 
-    For easier debugging the data folder is picked up by default from `../data` path,
-    relative to working directory.
-
-    If `debug` parameter is present in the `config.json`, the default logger is set to verbose DEBUG mode.
-    """
-
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
+        try:
+            self._config = Configuration.model_validate(self.configuration.parameters, by_alias=True)
+        except ValidationError as exc:
+            raise UserException(f"Invalid configuration: {exc}") from exc
+        self._client = RevenueCatClient(self._config.api_key)
 
-    def run(self):
+    # ------------------------------------------------------------------
+    # Orchestrator — under 30 lines
+    # ------------------------------------------------------------------
+
+    def run(self) -> None:
+        state = self._load_state()
+        logger.debug("Last run: %s", state.get("last_run"))
+        run_started_at = datetime.now(UTC)
+        try:
+            all_projects = self._client.list_projects()
+            if not all_projects:
+                logger.info("No projects found for the given API key")
+                return
+            project_ids = [self._config.project_id] if self._config.project_id else [p["id"] for p in all_projects]
+            if EntityGroup.config in self._config.entities:
+                self._write_table(
+                    "projects", [self._strip_envelope(p) for p in all_projects], _PKS["projects"], SCHEMAS["projects"]
+                )
+                for pid in project_ids:
+                    self._extract_config_entities(pid)
+            if EntityGroup.customers in self._config.entities:
+                for pid in project_ids:
+                    self._extract_customer_domain(pid)
+        except RevenueCatClientError as exc:
+            raise self._map_client_error(exc) from exc
+        self._save_state(run_started_at)
+
+    # ------------------------------------------------------------------
+    # Traversal methods
+    # ------------------------------------------------------------------
+
+    def _extract_config_entities(self, pid: str) -> None:
+        apps = [self._strip_envelope(a) for a in self._client.list_apps(pid)]
+        logger.info("Project %s: fetched %d apps", pid, len(apps))
+        self._write_table("apps", apps, _PKS["apps"], SCHEMAS["apps"])
+
+        products = [self._flatten_product(p) for p in self._client.list_products(pid)]
+        logger.info("Project %s: fetched %d products", pid, len(products))
+        self._write_table("products", products, _PKS["products"], SCHEMAS["products"])
+
+        entitlements = [self._strip_envelope(e) for e in self._client.list_entitlements(pid)]
+        logger.info("Project %s: fetched %d entitlements", pid, len(entitlements))
+        self._write_table("entitlements", entitlements, _PKS["entitlements"], SCHEMAS["entitlements"])
+
+        offerings = [self._strip_envelope(o) for o in self._client.list_offerings(pid)]
+        logger.info("Project %s: fetched %d offerings", pid, len(offerings))
+        self._write_table("offerings", offerings, _PKS["offerings"], SCHEMAS["offerings"])
+
+        packages: list[dict] = []
+        for offering in offerings:
+            oid = offering["id"]
+            for pkg in self._client.list_packages(pid, oid):
+                row = self._strip_envelope(pkg)
+                row["offering_id"] = oid
+                packages.append(row)
+        logger.info("Project %s: fetched %d packages", pid, len(packages))
+        self._write_table("packages", packages, _PKS["packages"], SCHEMAS["packages"])
+
+    def _extract_customer_domain(self, pid: str) -> None:
+        raw_customers = self._client.list_customers(pid)
+        customers = []
+        for c in raw_customers:
+            row = self._strip_envelope(c)
+            row.setdefault("project_id", pid)
+            customers.append(row)
+        logger.info("Project %s: fetched %d customers", pid, len(customers))
+        self._write_table("customers", customers, _PKS["customers"], SCHEMAS["customers"])
+
+        active_ent_rows: list[dict] = []
+        subscription_rows: list[dict] = []
+        sub_ent_rows: list[dict] = []
+        purchase_rows: list[dict] = []
+        invoice_rows: list[dict] = []
+
+        for idx, customer in enumerate(raw_customers, 1):
+            cid = customer["id"]
+            logger.debug("Processing customer %d/%d (id: %s)", idx, len(raw_customers), cid)
+
+            for item in self._client.list_customer_active_entitlements(pid, cid):
+                active_ent_rows.append(self._flatten_active_entitlement(item, cid))
+
+            for sub in self._client.list_customer_subscriptions(pid, cid):
+                flat, linkage = self._flatten_subscription(sub)
+                subscription_rows.append(flat)
+                sub_ent_rows.extend(linkage)
+
+            for purchase in self._client.list_customer_purchases(pid, cid):
+                row = self._strip_envelope(purchase)
+                row.setdefault("customer_id", cid)
+                purchase_rows.append(row)
+
+            for invoice in self._client.list_customer_invoices(pid, cid):
+                row = self._strip_envelope(invoice)
+                row.setdefault("customer_id", cid)
+                invoice_rows.append(row)
+
+        logger.info(
+            "Project %s: active_entitlements=%d subscriptions=%d sub_entitlements=%d purchases=%d invoices=%d",
+            pid,
+            len(active_ent_rows),
+            len(subscription_rows),
+            len(sub_ent_rows),
+            len(purchase_rows),
+            len(invoice_rows),
+        )
+        self._write_table(
+            "customer_active_entitlements",
+            active_ent_rows,
+            _PKS["customer_active_entitlements"],
+            SCHEMAS["customer_active_entitlements"],
+        )
+        self._write_table("subscriptions", subscription_rows, _PKS["subscriptions"], SCHEMAS["subscriptions"])
+        self._write_table(
+            "subscription_entitlements",
+            sub_ent_rows,
+            _PKS["subscription_entitlements"],
+            SCHEMAS["subscription_entitlements"],
+        )
+        self._write_table("purchases", purchase_rows, _PKS["purchases"], SCHEMAS["purchases"])
+        self._write_table("invoices", invoice_rows, _PKS["invoices"], SCHEMAS["invoices"])
+
+    # ------------------------------------------------------------------
+    # Pure flatteners (static — no self needed)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _strip_envelope(row: dict) -> dict:
+        """Remove list-envelope keys that must not appear as columns."""
+        result = dict(row)
+        for key in ("object", "next_page", "url"):
+            result.pop(key, None)
+        return result
+
+    @staticmethod
+    def _flatten_product(product: dict) -> dict:
         """
-        Main execution code
+        Flatten the nested `subscription` sub-object into top-level columns.
+
+        Input keys per research §3:
+            id, store_identifier, type, one_time, subscription{duration,
+            grace_period_duration, trial_duration}, display_name, app_id,
+            state, created_at, object
         """
+        row = dict(product)
+        row.pop("object", None)
+        sub = row.pop("subscription", None) or {}
+        row["subscription_duration"] = sub.get("duration")
+        row["subscription_grace_period_duration"] = sub.get("grace_period_duration")
+        row["subscription_trial_duration"] = sub.get("trial_duration")
+        return row
 
-        # ####### EXAMPLE TO REMOVE
-        # check for missing configuration parameters
-        params = Configuration(**self.configuration.parameters)
+    @staticmethod
+    def _flatten_subscription(subscription: dict) -> tuple[dict, list[dict]]:
+        """
+        Flatten `total_revenue_in_usd` and extract `entitlements` into linkage rows.
 
-        # Access parameters in configuration
-        if params.print_hello:
-            logging.info("Hello World")
+        Returns:
+            flat_row: subscription dict with nested objects replaced by scalar columns.
+            linkage_rows: list of {subscription_id, entitlement_id} dicts.
+        """
+        row = dict(subscription)
+        row.pop("object", None)
 
-        # get input table definitions
-        input_tables = self.get_input_tables_definitions()
-        for table in input_tables:
-            logging.info("Received input table: %s with path: %s", table.name, table.full_path)
+        # Flatten total_revenue_in_usd
+        revenue = row.pop("total_revenue_in_usd", None) or {}
+        row["total_revenue_in_usd_gross"] = revenue.get("gross")
+        row["total_revenue_in_usd_proceeds"] = revenue.get("proceeds")
+        row["total_revenue_in_usd_tax"] = revenue.get("tax")
+        row["total_revenue_in_usd_commission"] = revenue.get("commission")
+        row["total_revenue_in_usd_currency"] = revenue.get("currency")
 
-        if len(input_tables) == 0:
-            raise UserException("No input tables found")
+        # Extract nested entitlements list-envelope into linkage rows
+        ent_envelope = row.pop("entitlements", None) or {}
+        ent_items = ent_envelope.get("items") if isinstance(ent_envelope, dict) else []
+        ent_items = ent_items or []
+        sub_id = subscription.get("id")
+        linkage_rows = [{"subscription_id": sub_id, "entitlement_id": item["id"]} for item in ent_items]
 
-        # get last state data/in/state.json from previous run
-        previous_state = self.get_state_file()
-        logging.info(previous_state.get("some_parameter"))
+        return row, linkage_rows
 
-        # Create output table (Table definition - just metadata)
-        table = self.create_out_table_definition("output.csv", incremental=True, primary_key=["timestamp"])
+    @staticmethod
+    def _flatten_active_entitlement(item: dict, customer_id: str) -> dict:
+        """
+        Build a customer_active_entitlements row.
 
-        # get file path of the table (data/out/tables/Features.csv)
-        out_table_path = table.full_path
-        logging.info(out_table_path)
+        Live item shape: {entitlement_id, expires_at, object} — no top-level id/customer_id.
+        PK is customer_id + entitlement_id.
+        """
+        return {
+            "customer_id": customer_id,
+            "entitlement_id": item.get("entitlement_id"),
+            "expires_at": item.get("expires_at"),
+        }
 
-        # Add timestamp column and save into out_table_path
-        input_table = input_tables[0]
-        with (
-            open(input_table.full_path) as inp_file,
-            open(table.full_path, mode="w", encoding="utf-8", newline="") as out_file,
-        ):
-            reader = csv.DictReader(inp_file)
+    # ------------------------------------------------------------------
+    # Output writer
+    # ------------------------------------------------------------------
 
-            columns = list(reader.fieldnames)
-            # append timestamp
-            columns.append("timestamp")
+    def _write_table(
+        self,
+        name: str,
+        rows: list[dict],
+        primary_key: list[str],
+        schema: dict[str, ColumnDefinition],
+    ) -> None:
+        """
+        Write a headerless CSV + manifest for one output table.
 
-            # write result with column added
-            writer = csv.DictWriter(out_file, fieldnames=columns)
-            writer.writeheader()
-            for in_row in reader:
-                in_row["timestamp"] = datetime.now().isoformat()
-                writer.writerow(in_row)
+        An empty rows list still produces a manifest and an empty CSV file — required for
+        purchases/invoices which can be legitimately empty.
+        """
+        table_def = self.create_out_table_definition(
+            name,
+            primary_key=primary_key,
+            incremental=True,
+            schema=schema,
+        )
+        fieldnames = list(schema.keys())
+        with open(table_def.full_path, mode="w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            # Headerless CSV — schema manifest names the columns.
+            writer.writerows(rows)
+        self.write_manifest(table_def)
+        logger.debug("Wrote table %s: %d rows", name, len(rows))
 
-        # Save table manifest (output.csv.manifest) from the Table definition
-        self.write_manifest(table)
+    # ------------------------------------------------------------------
+    # State helpers
+    # ------------------------------------------------------------------
 
-        # Write new state - will be available next run
-        self.write_state_file({"some_state_parameter": "value"})
+    def _load_state(self) -> dict:
+        return self.get_state_file() or {}
 
-        # ####### EXAMPLE TO REMOVE END
+    def _save_state(self, run_started_at: datetime) -> None:
+        self.write_state_file({"last_run": run_started_at.isoformat()})
+
+    # ------------------------------------------------------------------
+    # Error mapping
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _map_client_error(exc: RevenueCatClientError) -> UserException:
+        """
+        Map a RevenueCatClientError to a UserException with a plain-language message.
+
+        Choice for exhausted-retry (retryable=True but retries depleted): surface as UserException
+        so the user sees a readable message ("RevenueCat API temporarily unavailable after retries;
+        please retry the job") rather than an opaque stack trace.  The user CAN retry the job, so
+        UserException (exit 1) is the right signal — it is user-actionable in the sense that
+        retrying or waiting is the correct remediation.
+        """
+        if exc.error_type == "authentication_error":
+            return UserException("Invalid RevenueCat API key — check the #api_key value.")
+        if exc.error_type == "resource_missing":
+            return UserException(f"RevenueCat resource not found (project_id may be wrong): {exc.message}")
+        if exc.retryable:
+            return UserException(
+                f"RevenueCat API temporarily unavailable after retries; please retry the job. "
+                f"({exc.error_type}: {exc.message})"
+            )
+        return UserException(f"RevenueCat API error ({exc.error_type}): {exc.message}")
 
 
 """
-        Main entrypoint
+Main entrypoint
 """
 if __name__ == "__main__":
     try:
