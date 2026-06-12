@@ -5,8 +5,9 @@
 **Author:** plan-worker (Component Factory, Phase 2)
 **Status:** research complete; settled from official docs + live calls with the secrets.json key. Human
 decisions locked (§0): v2-only runtime + seed test data. Test data **seeded and confirmed** (§8a) —
-customer `keboola-test-001` + one granted active entitlement now return live; subscriptions/purchases/
-invoices remain empty (not API-creatable).
+customer `keboola-test-001`, one active entitlement, AND one real `store: promotional` **subscription**
+(the promo grant materialized a subscription after a short propagation delay) now return live →
+genuine cassettes for those tables. Only **purchases/invoices** remain empty (not API-creatable).
 
 > Findings marked **[LIVE]** were verified firsthand with read-only `GET` calls against the
 > RevenueCat v2 API using the working secret key in `secrets.json` (`parameters.#api_key`). The key
@@ -107,6 +108,17 @@ an `object` discriminator field and a millisecond-epoch `created_at`.
 - **Per-customer entitlements live at `/active_entitlements`, not `/entitlements`. [LIVE]** The plain
   `/customers/{cid}/entitlements` path returns `404`; the extractor design must target
   `/active_entitlements` for the customer-to-entitlement table.
+- **Subscription item shape [LIVE]** (from the seeded `store: promotional` row,
+  `GET /customers/keboola-test-001/subscriptions`, count 1). Item keys:
+  `id, object("subscription"), customer_id, original_customer_id, product_id (null for promo),
+  store ("promotional"|"app_store"|"play_store"|…), status ("active"|…), environment ("production"),
+  ownership ("purchased"), gives_access (bool), auto_renewal_status ("will_not_renew"|…),
+  starts_at, ends_at, current_period_starts_at, current_period_ends_at (all epoch ms),
+  store_subscription_identifier, presented_offering_id, management_url, country, pending_changes,
+  pending_payment`. Two nested structures to flatten/child-table:
+  - `total_revenue_in_usd` → object `{commission, currency, gross, proceeds, tax}` (floats; all 0 for promo).
+  - `entitlements` → a **nested list-envelope** `{object:"list", items:[…], next_page, url}` whose items
+    are full entitlement objects (`id, lookup_key, display_name, state, project_id, created_at, object`).
 - **`expand` is supported** (e.g. `?expand=items.package` on offerings returned `200`). **[LIVE]**
 - Known doc-noted limitation: the customers *list* endpoint does not inline `active_entitlements`/
   `attributes` — those come from the per-customer `/active_entitlements` (or single-customer) fetch. To
@@ -226,9 +238,11 @@ Docs: error handling — https://www.revenuecat.com/docs/test-and-launch/errors
   id `entlaa46372046`), 1 offering, 3 packages → solid VCR fixtures for those tables.
 - **Customer data has been SEEDED** (was empty; the human authorized it and the team lead ran the seed —
   see §8a). `GET /v2/projects/proj2bfa9279/customers` now returns count **1** (`keboola-test-001`) with
-  one granted active entitlement, so the **customers** and **active_entitlements** tables are now
-  fixtureable from genuine reads. **Subscriptions, purchases, and invoices remain count 0** (not
-  API-creatable — they need a real store/SDK transaction) and will be recorded as empty-list cassettes.
+  one granted active entitlement, so the **customers** and **active_entitlements** tables are
+  fixtureable from genuine reads. The promo grant also **materialized a real `store: promotional`
+  subscription** (count **1** on `/subscriptions`, after a short propagation delay) → **subscriptions
+  is ALSO fixtureable from genuine reads, not empty.** Only **purchases and invoices remain count 0**
+  (not API-creatable — they need a real store/SDK transaction) and will be recorded as empty-list cassettes.
 
 ## 8a. Test-data seeding — what IS and ISN'T creatable via the API
 
@@ -245,7 +259,7 @@ go through v2 write endpoints**, which keeps it consistent with the v2-only runt
 |---|---|---|
 | **Customer** | ✅ via v2 | `POST /v2/projects/{id}/customers` body `{"id": "<app_user_id>"}` (optionally `attributes`) — creates a real customer that then appears in the `/customers` list. Returned `201`. |
 | **Promotional entitlement (active entitlement state on a customer)** | ✅ via v2 | `POST /v2/projects/{id}/customers/{customer_id}/actions/grant_entitlement` body **`{"entitlement_id": "<id>", "expires_at": <epoch_ms>}`**. Produces visible active-entitlement state on the customer. Returned `201`. ⚠️ Body must be exactly these fields — `end_time_ms` and `duration` are **rejected** (`parameter_error "Additional properties are not allowed"`); `expires_at` (epoch ms) is **required**. |
-| **Subscriptions list content** | ⚠️ partial | A *promotional grant* yields entitlement state but is **not a store-backed subscription** — confirmed live: after the grant, `/customers/{id}/subscriptions` stayed `count=0`. Realistic subscription rows require a real/sandbox store transaction (SDK test-purchase flow), not a server write. |
+| **Subscription** | ✅ via v2 (promo) | The `grant_entitlement` call **materializes a real subscription** with `store: "promotional"` — confirmed live: `/customers/{id}/subscriptions` → `count=1` (the row appeared after a short propagation delay; an immediate post-grant read showed 0, a re-read minutes later showed 1). This is a genuine subscription object, so the **subscriptions table IS fixtureable** from the seed. (A *store-backed* subscription — `store: app_store`/`play_store`/etc. — would still need a real/SDK purchase, but the promotional one is real and sufficient for a cassette.) |
 | **Purchases / Transactions** | ❌ NOT via API | v2 has **no** create-purchase/transaction endpoint; purchases originate only from real store transactions or the SDK sandbox flow + webhooks. The `test_store` app type is exercised via the SDK, not a server write. Confirmed live: `/purchases` stayed `count=0` after seeding. |
 | **Invoices** | ❌ NOT via API | Same — invoices derive from real billing events, no create endpoint. Confirmed live: `/invoices` stayed `count=0`. |
 
@@ -258,13 +272,20 @@ direct human intent). Results:
   body `{"entitlement_id":"entlaa46372046","expires_at":1798761600000}` → **201**.
 - Confirmed reads: `/customers` → count **1** (`keboola-test-001`);
   `/customers/keboola-test-001/active_entitlements` → count **1** (`entlaa46372046`,
-  `expires_at` `1798761600000` ≈ 2027-01-01). `/subscriptions`, `/purchases`, `/invoices` → count **0**
-  (expected — a promo grant is not a store purchase, and purchases/invoices are not API-creatable).
+  `expires_at` `1798761600000` ≈ 2027-01-01); `/customers/keboola-test-001/subscriptions` → count **1**
+  (a real `store: promotional` subscription — see §3 for its shape; it appeared after a short
+  propagation delay, an immediate post-grant read had shown 0). `/purchases`, `/invoices` → count **0**
+  (expected — purchases/invoices are not API-creatable).
 
-**Phase 5 fixture coverage from this seed:** genuine cassettes for **customers** and
-**active_entitlements-on-customer**. **Subscriptions, purchases, and invoices will be recorded as
-empty-list cassettes** (still valid for exercising pagination/extraction, just no row content) — those
-tables cannot be populated through the API.
+**Propagation-delay caveat (important for Phase 5):** the subscription is created asynchronously by the
+grant. An immediate read after `grant_entitlement` returned `count=0`; a re-read minutes later returned
+`count=1`. When recording the subscriptions cassette, read *after* the row has propagated (re-poll until
+non-empty), not immediately after the grant, or the cassette will wrongly capture an empty list.
+
+**Phase 5 fixture coverage from this seed:** genuine cassettes for **customers**,
+**active_entitlements-on-customer**, AND **subscriptions** (one real `store: promotional` row).
+**Only purchases and invoices will be recorded as empty-list cassettes** (still valid for exercising
+pagination/extraction, just no row content) — those two tables cannot be populated through the API.
 
 ### Traceability (for cleanup)
 - Project id: `proj2bfa9279` ("Create an app called Keboola")
@@ -277,9 +298,12 @@ tables cannot be populated through the API.
 
 ### Open Tier C questions for Phase 3 — all resolved
 1. **v2-only scope** — ✅ confirmed by human (locked, §0).
-2. **Test data** — ✅ human chose to seed; **seed performed and confirmed** (§8a). Accepted limitation:
-   **subscriptions/purchases/invoices fixtures will be empty** (not API-creatable). No open question
-   remains; the design must simply treat those three tables as possibly-empty.
+2. **Test data** — ✅ human chose to seed; **seed performed and confirmed** (§8a). The seed yields
+   genuine fixtures for customers, active_entitlements, AND subscriptions (one `store: promotional`
+   row). Accepted limitation: **only purchases and invoices fixtures will be empty** (not
+   API-creatable). No open question remains; the design must treat purchases/invoices as
+   possibly-empty tables and must re-poll subscriptions for the propagation delay when recording
+   cassettes (§8a).
 
 ---
 
