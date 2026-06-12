@@ -1,0 +1,9 @@
+{
+  "parameters": {
+    "#api_key": "DUMMY_KEY",
+    "project_id": "proj2bfa9279",
+    "entities": [
+      "config"
+    ]
+  }
+}

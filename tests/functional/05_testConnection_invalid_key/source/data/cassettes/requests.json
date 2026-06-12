@@ -1,0 +1,7 @@
+{
+  "_metadata": {"freeze_time": "2026-06-12T12:07:38", "keboola_vcr_version": "0.5.0", "recorded_at": "2026-06-12T10:07:38.498632+00:00"},
+  "interactions": [
+    {"request": {"body": null, "headers": {"Accept": ["application/json"], "Content-Type": ["application/json"]}, "method": "GET", "uri": "https://api.revenuecat.com/v2/projects?limit=1"}, "response": {"body": {"string": "{\"doc_url\":\"https://errors.rev.cat/authentication-error\",\"message\":\"Invalid API key.\",\"object\":\"error\",\"retryable\":false,\"type\":\"authentication_error\"}\n"}, "headers": {"Content-Type": ["application/json"], "content-length": ["152"]}, "status": {"code": 401, "message": "Unauthorized"}}}
+  ],
+  "version": 1
+}

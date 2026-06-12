@@ -1,0 +1,7 @@
+{
+  "_metadata": {"freeze_time": "2026-06-12T12:00:00", "keboola_vcr_version": "0.5.0", "recorded_at": "2026-06-12T10:06:44.512126+00:00"},
+  "interactions": [
+    {"request": {"body": null, "headers": {"Accept": ["application/json"], "Content-Type": ["application/json"]}, "method": "GET", "uri": "https://api.revenuecat.com/v2/projects?limit=1"}, "response": {"body": {"string": "{\"items\":[{\"created_at\":1781183075193,\"icon_url\":null,\"icon_url_large\":null,\"id\":\"proj2bfa9279\",\"name\":\"Create an app called Keboola\",\"object\":\"project\"}],\"next_page\":\"https://api.revenuecat.com/v2/projects?starting_after=proj2bfa9279&limit=1\",\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects\"}\n"}, "headers": {"Content-Type": ["application/json"], "content-length": ["308"]}, "status": {"code": 200, "message": "OK"}}}
+  ],
+  "version": 1
+}

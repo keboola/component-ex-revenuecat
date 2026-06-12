@@ -1,0 +1,79 @@
+{
+  "files": {},
+  "hash_algorithm": "sha256",
+  "tables": {
+    "customer_active_entitlements": {
+      "columns": null,
+      "hash": "sha256:26033bd557c85538d1c0bd2ac4d6863017290b59f8bccbbfa099d5f67e572df8",
+      "row_count": null,
+      "size_bytes": 47
+    },
+    "customer_active_entitlements.manifest": {
+      "columns": null,
+      "hash": "sha256:a6402e093e83857f7d2bbc9db6ab3ae183ff0b5d6a45916a1624935ed65ae920",
+      "row_count": null,
+      "size_bytes": 666
+    },
+    "customers": {
+      "columns": null,
+      "hash": "sha256:0645910961e3bf288da896f4611f71689b19ba08450e740ce09258f9dfa68cc7",
+      "row_count": null,
+      "size_bytes": 60
+    },
+    "customers.manifest": {
+      "columns": null,
+      "hash": "sha256:b6d337dfa2c68d387debaff89b620ab38fb8e89d3268c88a75a181a4d48a9870",
+      "row_count": null,
+      "size_bytes": 931
+    },
+    "invoices": {
+      "columns": null,
+      "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": null,
+      "size_bytes": 0
+    },
+    "invoices.manifest": {
+      "columns": null,
+      "hash": "sha256:bd77cbea0e171b529fc8279c951a456b8f6748bdf6c346e381647432e52c9c1d",
+      "row_count": null,
+      "size_bytes": 1075
+    },
+    "purchases": {
+      "columns": null,
+      "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": null,
+      "size_bytes": 0
+    },
+    "purchases.manifest": {
+      "columns": null,
+      "hash": "sha256:04ca37f5e325801d908cebe0896995a97d5a2ddf6397f152e5c53b084a39ca96",
+      "row_count": null,
+      "size_bytes": 1226
+    },
+    "subscription_entitlements": {
+      "columns": null,
+      "hash": "sha256:cceebac918864f84bfa40951f6ec7413e99e39df3ed6b525d506b750dcc6908a",
+      "row_count": null,
+      "size_bytes": 55
+    },
+    "subscription_entitlements.manifest": {
+      "columns": null,
+      "hash": "sha256:e0877db83caed86324ef6df73168123f6199dbb5f3d26b74020b68db2cb6d754",
+      "row_count": null,
+      "size_bytes": 520
+    },
+    "subscriptions": {
+      "columns": null,
+      "hash": "sha256:c56b97aa84042d478830aaa1388022d16170289397d0ce9a4267fc49831a3ecb",
+      "row_count": null,
+      "size_bytes": 253
+    },
+    "subscriptions.manifest": {
+      "columns": null,
+      "hash": "sha256:9b85c8b4b3de695fd74c99316cf9fbdfaeda55348c2e4af93075fdeef0f0018e",
+      "row_count": null,
+      "size_bytes": 3924
+    }
+  },
+  "version": "1.0"
+}

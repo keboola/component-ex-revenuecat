@@ -1,0 +1,19 @@
+{
+  "files": {},
+  "hash_algorithm": "sha256",
+  "tables": {
+    "projects": {
+      "columns": null,
+      "hash": "sha256:5299abd45bad7df1e2dc0d12084e5f44e40d5d3f13f3371b9ca1d6ef0c5bf151",
+      "row_count": null,
+      "size_bytes": 59
+    },
+    "projects.manifest": {
+      "columns": null,
+      "hash": "sha256:a7058f682e7abb00bbaca6861705071b1e33b9a4e69405c62bebc2a7594ff7bd",
+      "row_count": null,
+      "size_bytes": 920
+    }
+  },
+  "version": "1.0"
+}

@@ -1,0 +1,87 @@
+[
+  {
+    "name": "01_happy_config_entities",
+    "description": "Happy path: extract all config entities (projects/apps/products/entitlements/offerings/packages) for the seeded project. Asserts all six tables are written with real data.",
+    "config": {
+      "parameters": {
+        "#api_key": "DUMMY_KEY",
+        "project_id": "proj2bfa9279",
+        "entities": ["config"]
+      }
+    }
+  },
+  {
+    "name": "02_happy_customer_domain",
+    "description": "Happy path: extract customer domain (customers/active_entitlements/subscriptions/subscription_entitlements/purchases/invoices) for keboola-test-001. Purchases and invoices are empty but present.",
+    "config": {
+      "parameters": {
+        "#api_key": "DUMMY_KEY",
+        "project_id": "proj2bfa9279",
+        "entities": ["customers"]
+      }
+    }
+  },
+  {
+    "name": "03_entity_selection_config_only",
+    "description": "Entity selection: entities=[config] only — only config tables produced, no customer tables.",
+    "config": {
+      "parameters": {
+        "#api_key": "DUMMY_KEY",
+        "project_id": "proj2bfa9279",
+        "entities": ["config"]
+      }
+    }
+  },
+  {
+    "name": "04_testConnection_valid",
+    "description": "Sync action testConnection with valid credentials → success ValidationResult.",
+    "config": {
+      "action": "testConnection",
+      "parameters": {
+        "#api_key": "DUMMY_KEY"
+      }
+    }
+  },
+  {
+    "name": "05_testConnection_invalid_key",
+    "description": "Sync action testConnection with invalid API key → failure ValidationResult (authentication_error), NOT an exception. Exit 0 (sync actions always exit 0).",
+    "config": {
+      "action": "testConnection",
+      "parameters": {
+        "#api_key": "sk_invalid_key_for_testing_auth_failure"
+      }
+    }
+  },
+  {
+    "name": "06_listProjects",
+    "description": "Sync action listProjects → list of SelectElement dropdown options, one per project.",
+    "config": {
+      "action": "listProjects",
+      "parameters": {
+        "#api_key": "DUMMY_KEY"
+      }
+    }
+  },
+  {
+    "name": "07_bad_auth_run",
+    "description": "Run with invalid API key → authentication_error → UserException → exit 1.",
+    "config": {
+      "parameters": {
+        "#api_key": "sk_invalid_key_for_testing_auth_failure",
+        "project_id": "proj2bfa9279",
+        "entities": ["config"]
+      }
+    }
+  },
+  {
+    "name": "08_bad_project_id",
+    "description": "Run with valid key but non-existent project_id → resource_missing → UserException → exit 1.",
+    "config": {
+      "parameters": {
+        "#api_key": "DUMMY_KEY",
+        "project_id": "proj_does_not_exist_00000000",
+        "entities": ["config"]
+      }
+    }
+  }
+]

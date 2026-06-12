@@ -1,0 +1,9 @@
+{
+  "parameters": {
+    "#api_key": "sk_invalid_key_for_testing_auth_failure",
+    "project_id": "proj2bfa9279",
+    "entities": [
+      "config"
+    ]
+  }
+}

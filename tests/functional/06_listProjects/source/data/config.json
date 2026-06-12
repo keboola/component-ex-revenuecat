@@ -1,0 +1,6 @@
+{
+  "action": "listProjects",
+  "parameters": {
+    "#api_key": "DUMMY_KEY"
+  }
+}

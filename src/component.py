@@ -21,6 +21,27 @@ from configuration import Configuration, EntityGroup
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# VCR sanitizers — read by the keboola.datadirtest scaffold CLI when recording
+# cassettes. DefaultSanitizer:
+#   - strips all headers except content-type, content-length, accept
+#     (eliminates Authorization: Bearer sk_... from every cassette)
+#   - redacts `api_key` wherever it appears in request/response bodies
+#
+# keboola.vcr ships only with keboola.datadirtest (a dev dependency), so it is
+# ABSENT from the production image (built with `uv sync --no-dev`). The import is
+# therefore guarded: in production VCR_SANITIZERS is simply an empty list and the
+# component imports/runs normally; in the dev/test env (where keboola.vcr is
+# present) the scaffold CLI picks up the real sanitizers. A hard top-level import
+# would crash the production extractor with ModuleNotFoundError.
+# ---------------------------------------------------------------------------
+try:
+    from keboola.vcr import DefaultSanitizer
+
+    VCR_SANITIZERS = [DefaultSanitizer(additional_sensitive_fields=["api_key"])]
+except ModuleNotFoundError:  # pragma: no cover - production image has no keboola.vcr
+    VCR_SANITIZERS = []
+
+# ---------------------------------------------------------------------------
 # Per-table schemas — column order determines CSV field order.
 # Native types applied per spec §6.2 and research §3.
 # FLAG: purchases and invoices column types are docs-derived (empty fixtures in live test data;
