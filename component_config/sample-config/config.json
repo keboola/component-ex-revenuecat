@@ -15,7 +15,6 @@
     "entities": [
       "config",
       "customers"
-    ],
-    "load_type": "full_load"
+    ]
   }
 }

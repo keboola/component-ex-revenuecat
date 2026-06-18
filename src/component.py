@@ -206,6 +206,10 @@ class Component(ComponentBase):
             else:
                 project_ids = [p["id"] for p in all_projects if p.get("id")]
             if EntityGroup.config in self._config.entities:
+                # The projects table is always the full parent dimension — every project the API key
+                # can see — regardless of a configured project_id. The child entities below are what
+                # the project_id filter scopes; the projects roster intentionally stays complete so a
+                # downstream join always has the parent row available.
                 self._write_table(
                     "projects",
                     [self._strip_envelope(p) for p in all_projects if p.get("id")],
@@ -404,7 +408,11 @@ class Component(ComponentBase):
         ent_items = ent_envelope.get("items") if isinstance(ent_envelope, dict) else []
         ent_items = ent_items or []
         sub_id = subscription.get("id")
-        linkage_rows = [{"subscription_id": sub_id, "entitlement_id": item["id"]} for item in ent_items]
+        # Defensive `.get()` (matching the other flatteners); skip id-less items rather than emit a
+        # linkage row with a null entitlement_id, which is half the table's composite primary key.
+        linkage_rows = [
+            {"subscription_id": sub_id, "entitlement_id": item.get("id")} for item in ent_items if item.get("id")
+        ]
 
         return row, linkage_rows
 

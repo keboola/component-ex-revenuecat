@@ -13,8 +13,7 @@ Functionality Notes
 
 The component reads the RevenueCat v2 API and writes one Storage table per entity. It performs a
 full refresh on every run (RevenueCat v2 exposes no updated-since cursor); writes are incremental
-upserts on each table's primary key, so re-runs do not duplicate rows. A `last_run` watermark is
-persisted in state for a future incremental mode.
+upserts on each table's primary key, so re-runs do not duplicate rows.
 
 Prerequisites
 =============
@@ -51,7 +50,6 @@ Configuration
 | `#api_key`   | yes      | RevenueCat v2 secret key (`sk_…`). Stored encrypted.                              |
 | `project_id` | no       | Restrict to one project; empty extracts all projects the key can access.          |
 | `entities`   | no       | Entity groups to extract: `config` and/or `customers`. Defaults to both.          |
-| `load_type`  | no       | `full_load` (only mode for v1). Writes are PK upserts regardless.                  |
 
 Output
 ======
