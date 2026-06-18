@@ -1,0 +1,24 @@
+{
+  "exit_code": 1,
+  "stderr": "No action defined in the configuration, using the default run action.\nRevenueCat API error (authorization_error): The API key does not belong to the project proj_does_not_exist_00000000.\nTraceback (most recent call last):\n  File \"src/component.py\", line 200, in run\n    self._extract_config_entities(pid)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^\n  File \"src/component.py\", line 213, in _extract_config_entities\n    apps = [self._strip_envelope(a) for a in self._client.list_apps(pid)]\n                                             ~~~~~~~~~~~~~~~~~~~~~~^^^^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-revenuecat/src/client/revenuecat_client.py\", line 289, in list_apps\n    return self._paginate(f\"/projects/{project_id}/apps\")\n           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-revenuecat/src/client/revenuecat_client.py\", line 253, in _paginate\n    body = self._get(url, params=merged_params if page_num == 1 else None)\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-revenuecat/src/client/revenuecat_client.py\", line 162, in _get\n    raise error\nclient.revenuecat_client.RevenueCatClientError: The API key does not belong to the project proj_does_not_exist_00000000.\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"src/component.py\", line 527, in <module>\n    comp.execute_action()\n    ~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-revenuecat/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 251, in execute_action\n    return self._do_execute_action()\n           ~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-revenuecat/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 265, in _do_execute_action\n    return action_method()\n  File \"src/component.py\", line 205, in run\n    raise self._map_client_error(exc) from exc\nkeboola.component.exceptions.UserException: RevenueCat API error (authorization_error): The API key does not belong to the project proj_does_not_exist_00000000.\n",
+  "logs": [
+    {
+      "level": "WARNING",
+      "logger": "root",
+      "message": "No action defined in the configuration, using the default run action.",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 1 total items from /projects",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "ERROR",
+      "logger": "root",
+      "message": "RevenueCat API error (authorization_error): The API key does not belong to the project proj_does_not_exist_00000000.\nTraceback (most recent call last):\n  File \"src/component.py\", line 200, in run\n    self._extract_config_entities(pid)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^\n  File \"src/component.py\", line 213, in _extract_config_entities\n    apps = [self._strip_envelope(a) for a in self._client.list_apps(pid)]\n                                             ~~~~~~~~~~~~~~~~~~~~~~^^^^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-revenuecat/src/client/revenuecat_client.py\", line 289, in list_apps\n    return self._paginate(f\"/projects/{project_id}/apps\")\n           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-revenuecat/src/client/revenuecat_client.py\", line 253, in _paginate\n    body = self._get(url, params=merged_params if page_num == 1 else None)\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-revenuecat/src/client/revenuecat_client.py\", line 162, in _get\n    raise error\nclient.revenuecat_client.RevenueCatClientError: The API key does not belong to the project proj_does_not_exist_00000000.\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"src/component.py\", line 527, in <module>\n    comp.execute_action()\n    ~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-revenuecat/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 251, in execute_action\n    return self._do_execute_action()\n           ~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-revenuecat/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 265, in _do_execute_action\n    return action_method()\n  File \"src/component.py\", line 205, in run\n    raise self._map_client_error(exc) from exc\nkeboola.component.exceptions.UserException: RevenueCat API error (authorization_error): The API key does not belong to the project proj_does_not_exist_00000000.",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    }
+  ]
+}

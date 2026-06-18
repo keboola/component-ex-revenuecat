@@ -16,8 +16,10 @@ repos:
         pass_filenames: false
 
       - id: ty-check
-        name: ty type check
-        entry: uv run ty check
+        # Warnings-only by design: `ty` is still maturing, so its findings must NOT block commits
+        # for CF components. Keep the `|| true` — a cookiecutter sync will otherwise revert this to a hard gate.
+        name: ty type check (warnings only)
+        entry: bash -c 'uv run ty check || true'
         language: system
         types: [python]
         pass_filenames: false

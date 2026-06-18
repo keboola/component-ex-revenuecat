@@ -1,0 +1,203 @@
+{
+  "version": 1,
+  "interactions": [
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects?limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[{\"created_at\":1781183075193,\"icon_url\":null,\"icon_url_large\":null,\"id\":\"proj2bfa9279\",\"name\":\"Create an app called Keboola\",\"object\":\"project\"}],\"next_page\":null,\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects\"}\n"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    },
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects/proj2bfa9279/customers?limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[{\"experiment\":null,\"first_seen_at\":1781251528221,\"id\":\"keboola-test-001\",\"last_seen_app_version\":null,\"last_seen_at\":1781251528222,\"last_seen_country\":null,\"last_seen_platform\":null,\"last_seen_platform_version\":null,\"object\":\"customer\",\"project_id\":\"proj2bfa9279\"}],\"next_page\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers?starting_after=keboola-test-001&limit=100\",\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers\"}"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    },
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects/proj2bfa9279/customers?starting_after=keboola-test-001&limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[{\"experiment\":null,\"first_seen_at\":1781251600000,\"id\":\"synthetic-customer-002\",\"last_seen_app_version\":null,\"last_seen_at\":1781251600001,\"last_seen_country\":null,\"last_seen_platform\":null,\"last_seen_platform_version\":null,\"object\":\"customer\",\"project_id\":\"proj2bfa9279\"}],\"next_page\":null,\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers?starting_after=keboola-test-001&limit=100\"}"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    },
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/keboola-test-001/active_entitlements?limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[],\"next_page\":null,\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/keboola-test-001/active_entitlements\"}"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    },
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/keboola-test-001/subscriptions?limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[],\"next_page\":null,\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/keboola-test-001/subscriptions\"}"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    },
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/keboola-test-001/purchases?limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[],\"next_page\":null,\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/keboola-test-001/purchases\"}"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    },
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/keboola-test-001/invoices?limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[],\"next_page\":null,\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/keboola-test-001/invoices\"}"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    },
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/synthetic-customer-002/active_entitlements?limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[],\"next_page\":null,\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/synthetic-customer-002/active_entitlements\"}"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    },
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/synthetic-customer-002/subscriptions?limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[],\"next_page\":null,\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/synthetic-customer-002/subscriptions\"}"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    },
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/synthetic-customer-002/purchases?limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[],\"next_page\":null,\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/synthetic-customer-002/purchases\"}"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    },
+    {
+      "request": {
+        "body": null,
+        "headers": {
+          "Accept": ["application/json"],
+          "Content-Type": ["application/json"]
+        },
+        "method": "GET",
+        "uri": "https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/synthetic-customer-002/invoices?limit=100"
+      },
+      "response": {
+        "body": {
+          "string": "{\"items\":[],\"next_page\":null,\"object\":\"list\",\"url\":\"https://api.revenuecat.com/v2/projects/proj2bfa9279/customers/synthetic-customer-002/invoices\"}"
+        },
+        "headers": {"Content-Type": ["application/json"]},
+        "status": {"code": 200, "message": "OK"}
+      }
+    }
+  ]
+}

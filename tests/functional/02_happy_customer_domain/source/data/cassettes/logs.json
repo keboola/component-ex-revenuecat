@@ -1,0 +1,60 @@
+{
+  "exit_code": null,
+  "stderr": "No action defined in the configuration, using the default run action.\n",
+  "logs": [
+    {
+      "level": "WARNING",
+      "logger": "root",
+      "message": "No action defined in the configuration, using the default run action.",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 1 total items from /projects",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 1 total items from /projects/proj2bfa9279/customers",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "__main__",
+      "message": "Project proj2bfa9279: fetched 1 customers",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 1 total items from /projects/proj2bfa9279/customers/keboola-test-001/active_entitlements",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 1 total items from /projects/proj2bfa9279/customers/keboola-test-001/subscriptions",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 0 total items from /projects/proj2bfa9279/customers/keboola-test-001/purchases",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 0 total items from /projects/proj2bfa9279/customers/keboola-test-001/invoices",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "__main__",
+      "message": "Project proj2bfa9279: active_entitlements=1 subscriptions=1 sub_entitlements=1 purchases=0 invoices=0",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    }
+  ]
+}

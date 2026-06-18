@@ -1,26 +1,23 @@
-import logging
+from enum import StrEnum
 
-from keboola.component.exceptions import UserException
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class EntityGroup(StrEnum):
+    config = "config"
+    customers = "customers"
 
 
 class Configuration(BaseModel):
-    print_hello: bool
-    api_token: str = Field(alias="#api_token")
-    debug: bool = False
+    model_config = ConfigDict(extra="ignore")
 
-    def __init__(self, **data):
-        try:
-            super().__init__(**data)
-        except ValidationError as e:
-            error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in e.errors()]
-            raise UserException(f"Validation Error: {', '.join(error_messages)}")
+    api_key: str = Field(alias="#api_key")
+    project_id: str | None = None
+    entities: list[EntityGroup] = [EntityGroup.config, EntityGroup.customers]
 
-        if self.debug:
-            logging.debug("Component will run in Debug mode")
-
-    @field_validator("api_token")
-    def token_must_be_uppercase(cls, v):
-        if not v.isupper():
-            raise UserException("API token must be uppercase")
+    @field_validator("api_key")
+    @classmethod
+    def _non_blank(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("RevenueCat API key (#api_key) is required.")
         return v

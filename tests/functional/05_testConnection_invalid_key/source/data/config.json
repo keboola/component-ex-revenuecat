@@ -1,0 +1,6 @@
+{
+  "action": "testConnection",
+  "parameters": {
+    "#api_key": "sk_invalid_key_for_testing_auth_failure"
+  }
+}

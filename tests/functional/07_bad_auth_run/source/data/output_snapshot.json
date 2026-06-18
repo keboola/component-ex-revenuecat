@@ -1,0 +1,79 @@
+{
+  "files": {},
+  "hash_algorithm": "sha256",
+  "tables": {
+    "apps": {
+      "columns": null,
+      "hash": "sha256:38f686a784f510be7a66f596a6bfc564daa58f1d085c59fb2d444a0701fd8625",
+      "row_count": null,
+      "size_bytes": 64
+    },
+    "apps.manifest": {
+      "columns": null,
+      "hash": "sha256:fa17852d4068da7d814151559093ad31031d8feaf88b1e4c38fd95efe5cd299b",
+      "row_count": null,
+      "size_bytes": 912
+    },
+    "entitlements": {
+      "columns": null,
+      "hash": "sha256:5e0b8a4185385f3e1083f3664c84d3aedd27d0a7b889515fbde997922b2df163",
+      "row_count": null,
+      "size_bytes": 116
+    },
+    "entitlements.manifest": {
+      "columns": null,
+      "hash": "sha256:0f004e82677d2639a35eb591424b0ab8b88b1f0874cbf9ec1a9ed1b94261d0bd",
+      "row_count": null,
+      "size_bytes": 1070
+    },
+    "offerings": {
+      "columns": null,
+      "hash": "sha256:a4da5288327ffca4666258c6d886c39d8d49d72f2e734a67d73416e2cae5252f",
+      "row_count": null,
+      "size_bytes": 94
+    },
+    "offerings.manifest": {
+      "columns": null,
+      "hash": "sha256:10506aaf7cbb21e329b04c86b6db7eb75bef6878f5cc7f9cf6182feca6df3f81",
+      "row_count": null,
+      "size_bytes": 1367
+    },
+    "packages": {
+      "columns": null,
+      "hash": "sha256:bbf1ee8dcd33c5abc837cc92669e42c52c106e3cc9c3c4f49669ef16ebf7a9c5",
+      "row_count": null,
+      "size_bytes": 204
+    },
+    "packages.manifest": {
+      "columns": null,
+      "hash": "sha256:3edd9c6b64d2e3fdc3772942845ae2c768713702beac522c2af0374aa359a194",
+      "row_count": null,
+      "size_bytes": 1075
+    },
+    "products": {
+      "columns": null,
+      "hash": "sha256:1e85b4c2a8c08c8d92bb154480689b800f629c14d1773f5b1ef247238068b0b4",
+      "row_count": null,
+      "size_bytes": 277
+    },
+    "products.manifest": {
+      "columns": null,
+      "hash": "sha256:2d06090141fed3ae00e0f7f4994a375fc474ad7a891dc2c8508fa386b11860c7",
+      "row_count": null,
+      "size_bytes": 1862
+    },
+    "projects": {
+      "columns": null,
+      "hash": "sha256:5299abd45bad7df1e2dc0d12084e5f44e40d5d3f13f3371b9ca1d6ef0c5bf151",
+      "row_count": null,
+      "size_bytes": 59
+    },
+    "projects.manifest": {
+      "columns": null,
+      "hash": "sha256:a7058f682e7abb00bbaca6861705071b1e33b9a4e69405c62bebc2a7594ff7bd",
+      "row_count": null,
+      "size_bytes": 920
+    }
+  },
+  "version": "1.0"
+}

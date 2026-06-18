@@ -1,0 +1,78 @@
+{
+  "exit_code": null,
+  "stderr": "No action defined in the configuration, using the default run action.\n",
+  "logs": [
+    {
+      "level": "WARNING",
+      "logger": "root",
+      "message": "No action defined in the configuration, using the default run action.",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 1 total items from /projects",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 1 total items from /projects/proj2bfa9279/apps",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "__main__",
+      "message": "Project proj2bfa9279: fetched 1 apps",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 3 total items from /projects/proj2bfa9279/products",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "__main__",
+      "message": "Project proj2bfa9279: fetched 3 products",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 1 total items from /projects/proj2bfa9279/entitlements",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "__main__",
+      "message": "Project proj2bfa9279: fetched 1 entitlements",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 1 total items from /projects/proj2bfa9279/offerings",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "__main__",
+      "message": "Project proj2bfa9279: fetched 1 offerings",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "client.revenuecat_client",
+      "message": "Pagination complete: 3 total items from /projects/proj2bfa9279/offerings/ofrng68e4239d0f/packages",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "level": "INFO",
+      "logger": "__main__",
+      "message": "Project proj2bfa9279: fetched 3 packages",
+      "timestamp": "2026-06-12T12:00:00.000Z"
+    }
+  ]
+}
